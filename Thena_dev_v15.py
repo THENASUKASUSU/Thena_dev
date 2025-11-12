@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Versi: 14
+Versi: 15
 
 """
 # --- Kode Warna ANSI ---
@@ -31,7 +31,7 @@ try:
     # from cryptography.hazmat.primitives.kdf.argon2 import Argon2 # Tidak digunakan secara langsung, gunakan argon2.low_level
     from cryptography.hazmat.primitives import hashes
     from cryptography.fernet import Fernet
-    from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+    from cryptography.hazmat.primitives.ciphers.aead import AESGCM, ChaCha20Poly1305
     CRYPTOGRAPHY_AVAILABLE = True
     print(f"{GREEN}✅ Modul 'cryptography' ditemukan. Fitur Lanjutan Tersedia.{RESET}")
 except ImportError as e:
@@ -95,8 +95,8 @@ import mmap # Impor mmap untuk performa/file besar (V12/V13/V14)
 import struct # Impor struct untuk header dinamis (V12/V13/V14)
 
 # --- Nama File Konfigurasi dan Log ---
-CONFIG_FILE = "thena_config_v14.json"
-LOG_FILE = "thena_encryptor_v14.log"
+CONFIG_FILE = "thena_config_v15.json"
+LOG_FILE = "thena_encryptor_v15.log"
 
 # --- Variabel Global untuk Hardening V10/V11/V12/V13/V14 ---
 integrity_hashes = {} # Dict untuk menyimpan hash fungsi
@@ -533,7 +533,7 @@ def derive_key_from_master_key_for_header(master_key: bytes, input_file_path: st
     file_path_hash = hashlib.sha256(input_file_path.encode()).digest()[:16]
 
     # Ambil string dari konfigurasi dan konversi ke bytes
-    info_prefix_str = config.get("header_derivation_info", "thena_v14_header_enc_key_")
+    info_prefix_str = config.get("header_derivation_info", "thena_v15_header_enc_key_")
     info_bytes = info_prefix_str.encode('utf-8') + file_path_hash
 
     try:
@@ -562,20 +562,20 @@ def load_config():
     Returns:
         A dictionary containing the configuration.
     """
-    # Nilai default ditingkatkan untuk keamanan dan fungsionalitas V14
+    # Nilai default ditingkatkan untuk keamanan dan fungsionalitas V15
     default_config = {
         "kdf_type": "argon2id", # Pilihan KDF: "argon2id", "scrypt", "pbkdf2" (menggunakan cryptography jika tersedia)
-        "encryption_algorithm": "aes-gcm", # Pilihan Algoritma: hanya AES-GCM untuk saat ini (untuk kesederhanaan)
-        "argon2_time_cost": 25, # V14: Ditingkatkan
-        "argon2_memory_cost": 2**21, # V14: Ditingkatkan (2048MB)
-        "argon2_parallelism": 4, # V14: Ditingkatkan
-        "scrypt_n": 2**21, # V14: Ditingkatkan
+        "encryption_algorithm": "aes-gcm", # Pilihan Algoritma: "aes-gcm", "chacha20-poly1305"
+        "argon2_time_cost": 25, # V15: Ditingkatkan
+        "argon2_memory_cost": 2**21, # V15: Ditingkatkan (2048MB)
+        "argon2_parallelism": 4, # V15: Ditingkatkan
+        "scrypt_n": 2**21, # V15: Ditingkatkan
         "scrypt_r": 8,
         "scrypt_p": 1,
-        "pbkdf2_iterations": 200000, # V14: Ditingkatkan
+        "pbkdf2_iterations": 200000, # V15: Ditingkatkan
         "pbkdf2_hash_algorithm": "sha256", # Algoritma hash untuk PBKDF2
         "chunk_size": 64 * 1024,
-        "master_key_file": ".master_key_encrypted_v14", # Ubah nama file master key
+        "master_key_file": ".master_key_encrypted_v15", # Ubah nama file master key
         "padding_size_length": 4,
         "checksum_length": 32,
         "master_key_salt_len": 16,
@@ -586,7 +586,7 @@ def load_config():
         "compression_level": 6, # Level kompresi zlib (0-9)
         "batch_parallel": False, # Opsi eksekusi batch paralel
         "batch_workers": 2, # Jumlah worker jika paralel
-        "hkdf_info_prefix": "thena_v14_file_key_", # Awalan untuk info HKDF
+        "hkdf_info_prefix": "thena_v15_file_key_", # Awalan untuk info HKDF
         "enable_recursive_batch": False, # Opsi batch rekursif
         "output_name_suffix": "", # Suffix untuk nama output batch
         "use_hmac_verification": True, # Opsi verifikasi HMAC tambahan (V7)
@@ -595,34 +595,34 @@ def load_config():
         "disable_timestamp_in_filename": False, # Opsi untuk nama file output tanpa timestamp (V8)
         "verify_output_integrity": True, # Opsi verifikasi integritas file output (V8)
         "log_level": "INFO", # Level logging (V8)
-        "hmac_derivation_info": "thena_v14_hmac_key_", # Info string untuk derivasi HMAC (V8 - Fixed HMAC)
+        "hmac_derivation_info": "thena_v15_hmac_key_", # Info string untuk derivasi HMAC (V8 - Fixed HMAC)
         "enable_temp_files": False, # Opsi untuk menyimpan data sementara ke file (V9 - Hardening)
         "temp_dir": "./temp_thena", # Direktori untuk file sementara (V9 - Hardening)
         "max_file_size": 100 * 1024 * 1024, # Batas maksimal ukuran file yang diproses (100MB) (V9 - Hardening)
         "enable_memory_obfuscation": False, # Opsi untuk obfuskasi data di memori (V9 - Hardening)
         "memory_obfuscation_key": "", # Kunci untuk obfuskasi memori (V9 - Hardening)
         # --- V10/V11/V12/V13: Konfigurasi Hardening Lanjutan ---
-        "enable_secure_memory": True, # Opsi untuk mlock dan overwrite variabel sensitif (V10/V11/V12/V13/V14)
-        "enable_runtime_integrity": False, # Opsi untuk runtime integrity checks (V10/V11/V12/V13/V14)
-        "enable_anti_debug": True, # Opsi untuk anti-debugging techniques (V10/V11/V12/V13/V14)
-        "custom_format_shuffle": True, # Opsi untuk mengacak urutan bagian file output (V10/V11/V12/V13/V14)
-        "custom_format_encrypt_header": True, # Opsi untuk mengenkripsi header file output (V10/V11/V12/V13/V14)
-        "integrity_check_interval": 5, # Interval (detik) untuk pemeriksaan integritas runtime (V10/V11/V12/V13/V14)
-        "debug_detection_methods": ["check_pydevd", "check_ptrace"], # Metode deteksi debug (V10/V11/V12/V13/V14)
-        # --- V12/V13/V14: Konfigurasi Hardening Lanjutan ---
-        "use_mmap_for_large_files": True, # V12/V13/V14: Gunakan mmap untuk file besar (performa/hardening)
-        "large_file_threshold": 10 * 1024 * 1024, # V12/V13/V14: Ambang batas file besar (10MB)
-        "dynamic_header_version": 2, # V14: Ditingkatkan versi header dinamis
-        "dynamic_header_encryption_key_length": 32, # V12/V13/V14: Panjang kunci untuk enkripsi header dinamis
-        "enable_secure_memory_overwrite": False, # V12/V13/V14: Aktifkan overwrite variabel sensitif
-        "enable_dynamic_header_integrity_check": True, # V12/V13/V14: Aktifkan verifikasi integritas header dinamis
-        "hardware_integration_enabled": False, # V12/V13/V14: Placeholder untuk integrasi hardware (TPM)
-        "post_quantum_ready": False, # V12/V13/V14: Placeholder untuk kriptografi post-kuantum
-        # --- V14: Konfigurasi Hardening Lanjutan ---
-        "enable_secure_memory_locking": False, # V14: Aktifkan mlock (jika tersedia)
-        "enable_runtime_data_integrity": False, # V14: Aktifkan pemeriksaan integritas data di memori
-        "custom_format_variable_parts": True, # V14: Aktifkan struktur bagian file yang bervariasi
-        "header_derivation_info": "thena_v14_header_enc_key_", # V14: Info string untuk derivasi kunci header
+        "enable_secure_memory": True, # Opsi untuk mlock dan overwrite variabel sensitif (V10/V11/V12/V13/V15)
+        "enable_runtime_integrity": False, # Opsi untuk runtime integrity checks (V10/V11/V12/V13/V15)
+        "enable_anti_debug": True, # Opsi untuk anti-debugging techniques (V10/V11/V12/V13/V15)
+        "custom_format_shuffle": True, # Opsi untuk mengacak urutan bagian file output (V10/V11/V12/V13/V15)
+        "custom_format_encrypt_header": True, # Opsi untuk mengenkripsi header file output (V10/V11/V12/V13/V15)
+        "integrity_check_interval": 5, # Interval (detik) untuk pemeriksaan integritas runtime (V10/V11/V12/V13/V15)
+        "debug_detection_methods": ["check_pydevd", "check_ptrace"], # Metode deteksi debug (V10/V11/V12/V13/V15)
+        # --- V12/V13/V15: Konfigurasi Hardening Lanjutan ---
+        "use_mmap_for_large_files": True, # V12/V13/V15: Gunakan mmap untuk file besar (performa/hardening)
+        "large_file_threshold": 10 * 1024 * 1024, # V12/V13/V15: Ambang batas file besar (10MB)
+        "dynamic_header_version": 2, # V15: Ditingkatkan versi header dinamis
+        "dynamic_header_encryption_key_length": 32, # V12/V13/V15: Panjang kunci untuk enkripsi header dinamis
+        "enable_secure_memory_overwrite": False, # V12/V13/V15: Aktifkan overwrite variabel sensitif
+        "enable_dynamic_header_integrity_check": True, # V12/V13/V15: Aktifkan verifikasi integritas header dinamis
+        "hardware_integration_enabled": False, # V12/V13/V15: Placeholder untuk integrasi hardware (TPM)
+        "post_quantum_ready": False, # V12/V13/V15: Placeholder untuk kriptografi post-kuantum
+        # --- V15: Konfigurasi Hardening Lanjutan ---
+        "enable_secure_memory_locking": False, # V15: Aktifkan mlock (jika tersedia)
+        "enable_runtime_data_integrity": False, # V15: Aktifkan pemeriksaan integritas data di memori
+        "custom_format_variable_parts": True, # V15: Aktifkan struktur bagian file yang bervariasi
+        "header_derivation_info": "thena_v15_header_enc_key_", # V15: Info string untuk derivasi kunci header
     }
 
     config_path = Path(CONFIG_FILE)
@@ -634,18 +634,18 @@ def load_config():
             for key, value in default_config.items():
                 if key not in config:
                     config[key] = value
-            print(f"{CYAN}Konfigurasi V14 dimuat dari {CONFIG_FILE}{RESET}")
+            print(f"{CYAN}Konfigurasi V15 dimuat dari {CONFIG_FILE}{RESET}")
         except json.JSONDecodeError:
-            print(f"{RED}Error membaca {CONFIG_FILE}, menggunakan nilai default V14.{RESET}")
+            print(f"{RED}Error membaca {CONFIG_FILE}, menggunakan nilai default V15.{RESET}")
             config = default_config
     else:
         config = default_config
         try:
             with open(config_path, 'w') as f:
                 json.dump(config, f, indent=4)
-            print(f"{CYAN}File konfigurasi default V14 '{CONFIG_FILE}' dibuat.{RESET}")
+            print(f"{CYAN}File konfigurasi default V15 '{CONFIG_FILE}' dibuat.{RESET}")
         except IOError:
-            print(f"{RED}Gagal membuat file konfigurasi V14 '{CONFIG_FILE}'. Menggunakan nilai default.{RESET}")
+            print(f"{RED}Gagal membuat file konfigurasi V15 '{CONFIG_FILE}'. Menggunakan nilai default.{RESET}")
             config = default_config
     return config
 
@@ -662,7 +662,7 @@ def setup_logging():
         ]
     )
     logger = logging.getLogger(__name__)
-    logger.info("=== Encryptor V14 Dimulai ===")
+    logger.info("=== Encryptor V15 Dimulai ===")
 
 # --- Setup Konfigurasi dan Logger ---
 config = load_config()
@@ -1122,7 +1122,7 @@ def derive_file_key_from_master_key(master_key: bytes, input_file_path: str) -> 
     file_path_hash = hashlib.sha256(input_file_path.encode()).digest()[:16] # Gunakan 16 byte pertama
 
     # Ambil string dari konfigurasi dan konversi ke bytes
-    info_prefix_str = config.get("hkdf_info_prefix", "thena_v14_file_key_")
+    info_prefix_str = config.get("hkdf_info_prefix", "thena_v15_file_key_")
     info_bytes = info_prefix_str.encode('utf-8') + file_path_hash # Gabungkan prefix dan hash path
 
     try:
@@ -1160,7 +1160,7 @@ def derive_hmac_key_from_master_key(master_key: bytes, input_file_path: str) -> 
     file_path_hash = hashlib.sha256(input_file_path.encode()).digest()[:16]
 
     # Ambil string dari konfigurasi dan konversi ke bytes
-    info_prefix_str = config.get("hmac_derivation_info", "thena_v14_hmac_key_")
+    info_prefix_str = config.get("hmac_derivation_info", "thena_v15_hmac_key_")
     info_bytes = info_prefix_str.encode('utf-8') + file_path_hash # Gabungkan prefix dan hash path (V14)
 
     try:
@@ -1382,14 +1382,14 @@ def encrypt_file_simple(input_path: str, output_path: str, password: str, keyfil
              plaintext_data = obfuscate_memory(plaintext_data)
 
         # --- Tambahkan Kompresi di sini ---
+        original_checksum = calculate_checksum(plaintext_data)
+        logger.debug(f"Checksum data (sebelum kompresi): {original_checksum.hex()}")
+
         if config.get("enable_compression", False):
             logger.debug("Mengompresi data sebelum enkripsi...")
             plaintext_data = compress_data(plaintext_data)
         else:
             logger.debug("Kompresi dinonaktifkan, melewati.")
-
-        original_checksum = calculate_checksum(plaintext_data)
-        logger.debug(f"Checksum data (setelah kompresi jika diaktifkan): {original_checksum.hex()}")
 
         data = plaintext_data
         padding_added = 0
@@ -1399,7 +1399,7 @@ def encrypt_file_simple(input_path: str, output_path: str, password: str, keyfil
             data = plaintext_data + random_padding
             padding_added = padding_length
 
-        # --- Pilih Algoritma Enkripsi (hanya AES-GCM untuk v14 ini) ---
+        # --- Pilih Algoritma Enkripsi ---
         algo = config.get("encryption_algorithm", "aes-gcm").lower()
         if algo == "aes-gcm":
             if CRYPTOGRAPHY_AVAILABLE:
@@ -1416,9 +1416,19 @@ def encrypt_file_simple(input_path: str, output_path: str, password: str, keyfil
                 print(f"{RED}❌ Error: Tidak ada pustaka tersedia untuk algoritma '{algo}'.{RESET}")
                 logger.error(f"Tidak ada pustaka tersedia untuk algoritma '{algo}'.")
                 return False, None
+        elif algo == "chacha20-poly1305":
+            if CRYPTOGRAPHY_AVAILABLE:
+                nonce = secrets.token_bytes(12)
+                cipher = ChaCha20Poly1305(key)
+                ciphertext = cipher.encrypt(nonce, data, associated_data=None)
+                tag = b""
+            else:
+                print(f"{RED}❌ Error: Algoritma '{algo}' memerlukan modul 'cryptography'.{RESET}")
+                logger.error(f"Algoritma '{algo}' tidak tersedia tanpa 'cryptography'.")
+                return False, None
         else:
-            print(f"{RED}❌ Error: Algoritma enkripsi '{algo}' tidak dikenal atau tidak didukung di v14 ini.{RESET}")
-            logger.error(f"Algoritma enkripsi '{algo}' tidak dikenal atau tidak didukung di v14 ini.")
+            print(f"{RED}❌ Error: Algoritma enkripsi '{algo}' tidak dikenal atau tidak didukung di v15 ini.{RESET}")
+            logger.error(f"Algoritma enkripsi '{algo}' tidak dikenal atau tidak didukung di v15 ini.")
             return False, None
 
         # --- V8: Tambahkan HMAC untuk verifikasi tambahan (Fixed HMAC Derivation - V14: Konsisten & Lebih Aman) ---
@@ -1771,6 +1781,19 @@ def decrypt_file_simple(input_path: str, output_path: str, password: str, keyfil
                 print(f"{RED}❌ Error: Tidak ada pustaka tersedia untuk dekripsi AES-GCM.{RESET}")
                 logger.error(f"Tidak ada pustaka tersedia untuk dekripsi AES-GCM.")
                 return False, None
+        elif algo == "chacha20-poly1305":
+            if CRYPTOGRAPHY_AVAILABLE:
+                cipher = ChaCha20Poly1305(key)
+                try:
+                    plaintext_data = cipher.decrypt(nonce, ciphertext, associated_data=None)
+                except Exception as e:
+                    print(f"{RED}❌ Error: Dekripsi gagal. Kunci mungkin salah atau file rusak (otentikasi ChaCha20-Poly1305 gagal).{RESET}")
+                    logger.error(f"Dekripsi gagal (otentikasi ChaCha20-Poly1305) untuk {input_path}: {e}")
+                    return False, None
+            else:
+                print(f"{RED}❌ Error: Algoritma '{algo}' memerlukan modul 'cryptography'.{RESET}")
+                logger.error(f"Algoritma '{algo}' tidak tersedia tanpa 'cryptography'.")
+                return False, None
 
         if padding_added > 0:
             if len(plaintext_data) < padding_added:
@@ -1945,14 +1968,14 @@ def encrypt_file_with_master_key(input_path: str, output_path: str, master_key: 
                 register_sensitive_data(f"master_key_{input_path}", master_key)
 
         # --- Tambahkan Kompresi di sini ---
+        original_checksum = calculate_checksum(plaintext_data)
+        logger.debug(f"Checksum data (sebelum kompresi): {original_checksum.hex()}")
+
         if config.get("enable_compression", False):
             logger.debug("Mengompresi data sebelum enkripsi...")
             plaintext_data = compress_data(plaintext_data)
         else:
             logger.debug("Kompresi dinonaktifkan, melewati.")
-
-        original_checksum = calculate_checksum(plaintext_data)
-        logger.debug(f"Checksum data (setelah kompresi jika diaktifkan): {original_checksum.hex()}")
 
         data = plaintext_data
         padding_added = 0
@@ -1974,7 +1997,7 @@ def encrypt_file_with_master_key(input_path: str, output_path: str, master_key: 
             if config.get("enable_runtime_data_integrity", False):
                 register_sensitive_data(f"file_key_{input_path}", file_key)
 
-        # --- Pilih Algoritma Enkripsi (hanya AES-GCM untuk v14 ini) ---
+        # --- Pilih Algoritma Enkripsi ---
         algo = config.get("encryption_algorithm", "aes-gcm").lower()
         if algo == "aes-gcm":
             if CRYPTOGRAPHY_AVAILABLE:
@@ -1990,9 +2013,19 @@ def encrypt_file_with_master_key(input_path: str, output_path: str, master_key: 
                 print(f"{RED}❌ Error: Tidak ada pustaka tersedia untuk algoritma '{algo}'.{RESET}")
                 logger.error(f"Tidak ada pustaka tersedia untuk algoritma '{algo}'.")
                 return False, None
+        elif algo == "chacha20-poly1305":
+            if CRYPTOGRAPHY_AVAILABLE:
+                nonce = secrets.token_bytes(12)
+                cipher = ChaCha20Poly1305(file_key)
+                ciphertext = cipher.encrypt(nonce, data, associated_data=None)
+                tag = b""
+            else:
+                print(f"{RED}❌ Error: Algoritma '{algo}' memerlukan modul 'cryptography'.{RESET}")
+                logger.error(f"Algoritma '{algo}' tidak tersedia tanpa 'cryptography'.")
+                return False, None
         else:
-            print(f"{RED}❌ Error: Algoritma enkripsi '{algo}' tidak dikenal atau tidak didukung di v14 ini.{RESET}")
-            logger.error(f"Algoritma enkripsi '{algo}' tidak dikenal atau tidak didukung di v14 ini.")
+            print(f"{RED}❌ Error: Algoritma enkripsi '{algo}' tidak dikenal atau tidak didukung di v15 ini.{RESET}")
+            logger.error(f"Algoritma enkripsi '{algo}' tidak dikenal atau tidak didukung di v15 ini.")
             return False, None
 
         # Kunci file terenkripsi tetap seperti sebelumnya
@@ -2362,6 +2395,19 @@ def decrypt_file_with_master_key(input_path: str, output_path: str, master_key: 
                 print(f"{RED}❌ Error: Tidak ada pustaka tersedia untuk dekripsi AES-GCM.{RESET}")
                 logger.error(f"Tidak ada pustaka tersedia untuk dekripsi AES-GCM.")
                 return False, None
+        elif algo == "chacha20-poly1305":
+            if CRYPTOGRAPHY_AVAILABLE:
+                cipher = ChaCha20Poly1305(file_key)
+                try:
+                    plaintext_data = cipher.decrypt(nonce, ciphertext, associated_data=None)
+                except Exception as e:
+                    print(f"{RED}❌ Error: Dekripsi gagal. Kunci mungkin salah atau file rusak (otentikasi ChaCha20-Poly1305 gagal).{RESET}")
+                    logger.error(f"Dekripsi gagal (otentikasi ChaCha20-Poly1305) untuk {input_path}: {e}")
+                    return False, None
+            else:
+                print(f"{RED}❌ Error: Algoritma '{algo}' memerlukan modul 'cryptography'.{RESET}")
+                logger.error(f"Algoritma '{algo}' tidak tersedia tanpa 'cryptography'.")
+                return False, None
 
         if padding_added > 0:
             if len(plaintext_data) < padding_added:
@@ -2477,7 +2523,7 @@ def derive_hmac_key_from_master_key(master_key: bytes, input_file_path: str) -> 
     file_path_hash = hashlib.sha256(input_file_path.encode()).digest()[:16]
 
     # Ambil string dari konfigurasi dan konversi ke bytes
-    info_prefix_str = config.get("hmac_derivation_info", "thena_v14_hmac_key_")
+    info_prefix_str = config.get("hmac_derivation_info", "thena_v15_hmac_key_")
     info_bytes = info_prefix_str.encode('utf-8') + file_path_hash # Gabungkan prefix dan hash path (V14)
 
     try:
@@ -2518,7 +2564,7 @@ def derive_key_from_master_key_for_header(master_key: bytes, input_file_path: st
     file_path_hash = hashlib.sha256(input_file_path.encode()).digest()[:16]
 
     # Ambil string dari konfigurasi dan konversi ke bytes
-    info_prefix_str = config.get("header_derivation_info", "thena_v14_header_enc_key_")
+    info_prefix_str = config.get("header_derivation_info", "thena_v15_header_enc_key_")
     info_bytes = info_prefix_str.encode('utf-8') + file_path_hash
 
     try:
@@ -2714,7 +2760,7 @@ def main():
         integrity_thread.start()
         logger.info(f"Runtime integrity checker dimulai dengan interval {interval}s.")
 
-    parser = argparse.ArgumentParser(description='Thena Dev Encryption Tool V14 (Enhanced Security, Simplified Menu, Bug Fixed, Security Improved, Hardened, Improved Hardening, Advanced Hardening, Runtime Integrity, Anti-Debug, Secure Memory, Custom Format, Hardware Ready, PQ-Ready, Dynamic Format, Fully Hardened, Argon2 Enhanced, Secure Memory Overwrite Fixed, Advanced Hardening Implemented, Advanced KDF Parameters, Dynamic File Format, Runtime Data Integrity, Secure Memory Locking, Anti-Debugging, Runtime Integrity Checks, Secure Memory Overwrite, Advanced Secure Memory Handling, Dynamic Header Format, Runtime Data Integrity Checks, Anti-Analysis, Secure Memory Locking (mlock), Secure Memory Overwrite (memset), Custom Encrypted File Format (Shuffle & Encrypt Header), Advanced KDF Parameters, Hardware Integration Ready (Placeholder), Post-Quantum Ready (Placeholder)')
+    parser = argparse.ArgumentParser(description='Thena Dev Encryption Tool V15 (Enhanced Security, Simplified Menu, Bug Fixed, Security Improved, Hardened, Improved Hardening, Advanced Hardening, Runtime Integrity, Anti-Debug, Secure Memory, Custom Format, Hardware Ready, PQ-Ready, Dynamic Format, Fully Hardened, Argon2 Enhanced, Secure Memory Overwrite Fixed, Advanced Hardening Implemented, Advanced KDF Parameters, Dynamic File Format, Runtime Data Integrity, Secure Memory Locking, Anti-Debugging, Runtime Integrity Checks, Secure Memory Overwrite, Advanced Secure Memory Handling, Dynamic Header Format, Runtime Data Integrity Checks, Anti-Analysis, Secure Memory Locking (mlock), Secure Memory Overwrite (memset), Custom Encrypted File Format (Shuffle & Encrypt Header), Advanced KDF Parameters, Hardware Integration Ready (Placeholder), Post-Quantum Ready (Placeholder)')
     parser.add_argument('--encrypt', action='store_true', help='Mode enkripsi')
     parser.add_argument('--decrypt', action='store_true', help='Mode dekripsi')
     parser.add_argument('--batch', action='store_true', help='Mode batch (memerlukan --dir)')
@@ -2849,7 +2895,7 @@ def main():
 
         while True:
             print_box(
-                f"THENADev SCRIPT V14",
+                f"THENADev SCRIPT V15",
                 [
                     "1. Enkripsi File",
                     "2. Dekripsi File",
@@ -2969,7 +3015,7 @@ def main():
 
             elif choice == '3':
                 print("\n" + "─" * 50)
-                print(f"{GREEN}✅ Keluar dari program V14.{RESET}")
+                print(f"{GREEN}✅ Keluar dari program V15.{RESET}")
                 print(f"{YELLOW}⚠️  Ingat:{RESET}")
                 print(f"{YELLOW}  - Simpan password Anda dengan aman.{RESET}")
                 if CRYPTOGRAPHY_AVAILABLE:
@@ -2979,7 +3025,7 @@ def main():
                 print(f"{YELLOW}  - Cadangkan file penting Anda.{RESET}")
                 print(f"{YELLOW}  - Gunakan perangkat ini dengan bijak.{RESET}")
                 print("─" * 50)
-                logger.info(f"=== Encryptor V14 ({'With Advanced Features (cryptography)' if CRYPTOGRAPHY_AVAILABLE else 'Simple Mode (pycryptodome)'}) Selesai ===")
+                logger.info(f"=== Encryptor V15 ({'With Advanced Features (cryptography)' if CRYPTOGRAPHY_AVAILABLE else 'Simple Mode (pycryptodome)'}) Selesai ===")
                 print("─" * 50)
 
                 # --- V10: Hentikan Thread Integrity ---
