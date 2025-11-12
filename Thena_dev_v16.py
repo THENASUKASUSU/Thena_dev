@@ -2904,6 +2904,8 @@ def main():
                     continue
 
                 if not check_file_size_limit(input_path):
+                    input(f"\n{CYAN}Tekan Enter untuk kembali ke menu utama...{RESET}")
+                    clear_screen()
                     continue
 
                 if is_encrypt:
@@ -2918,6 +2920,8 @@ def main():
                         print("\n" + "─" * 50)
                         print(f"{RED}❌ Nama file output tidak boleh kosong.{RESET}")
                         print("─" * 50)
+                        input(f"\n{CYAN}Tekan Enter untuk kembali ke menu utama...{RESET}")
+                        clear_screen()
                         continue
                     if not confirm_overwrite(output_path):
                         continue
@@ -2927,6 +2931,8 @@ def main():
                     print("\n" + "─" * 50)
                     print(f"{RED}❌ Kata sandi tidak boleh kosong.{RESET}")
                     print("─" * 50)
+                    input(f"\n{CYAN}Tekan Enter untuk kembali ke menu utama...{RESET}")
+                    clear_screen()
                     continue
 
                 use_keyfile = input(f"{BOLD}Gunakan Keyfile? (y/N): {RESET}").strip().lower()
@@ -2937,6 +2943,8 @@ def main():
                         print("\n" + "─" * 50)
                         print(f"{RED}❌ File keyfile tidak ditemukan.{RESET}")
                         print("─" * 50)
+                        input(f"\n{CYAN}Tekan Enter untuk kembali ke menu utama...{RESET}")
+                        clear_screen()
                         continue
 
                 if not validate_password_keyfile(password, keyfile_path):
@@ -3026,6 +3034,8 @@ def main():
                 print(f"{RED}❌ Pilihan tidak valid. Silakan coba lagi.{RESET}")
                 logger.warning(f"Pilihan tidak valid dimasukkan: {choice}")
                 print("─" * 50)
+                input(f"\n{CYAN}Tekan Enter untuk kembali ke menu utama...{RESET}")
+                clear_screen()
 
 if __name__ == "__main__":
     main()
