@@ -706,33 +706,56 @@ def calculate_checksum(data) -> bytes:
     return hashlib.sha256(data).digest()
 
 def secure_wipe_file(file_path: str, passes: int = 5):
-    """Securely wipes a file by overwriting it with random data.
-
+    """Securely wipes a file by overwriting it with random data in chunks.
     Args:
         file_path: The path to the file to wipe.
         passes: The number of times to overwrite the file.
     """
+    config = load_config()
     if not os.path.exists(file_path):
         print(f"{YELLOW}⚠️  File '{file_path}' tidak ditemukan, dilewati.{RESET}")
         logger.warning(f"File '{file_path}' tidak ditemukan saat secure wipe.")
         return
+    try:
+        file_size = os.path.getsize(file_path)
+        if file_size == 0:
+            os.remove(file_path)
+            print(f"{GREEN}✅ File kosong '{file_path}' telah dihapus.{RESET}")
+            logger.info(f"File kosong '{file_path}' dihapus.")
+            return
+        print(f"{CYAN}Menghapus secara aman '{file_path}' ({file_size} bytes)...{RESET}")
+        chunk_size = config.get("chunk_size", 64 * 1024)
+        with open(file_path, "r+b") as f:
+            for i in range(passes):
+                print(f"  Pass {i + 1}/{passes}...")
+                f.seek(0)
+                remaining_size = file_size
+                with tqdm(total=file_size, unit='B', unit_scale=True, desc=f"Pass {i+1}", leave=False) as pbar:
+                    while remaining_size > 0:
+                        current_chunk_size = min(chunk_size, remaining_size)
 
-    file_size = os.path.getsize(file_path)
-    print(f"{CYAN}Menghapus secara aman '{file_path}'...{RESET}")
-    with open(file_path, "r+b") as f:
-        for i in range(passes): # Perbaikan: ganti 'passs' menjadi 'passes'
-            f.seek(0)
-            if i == passes - 1:
-                f.write(b'\x00' * file_size)
-            elif i == passes - 2:
-                f.write(b'\xFF' * file_size)
-            else:
-                f.write(secrets.token_bytes(file_size)) # Gunakan secrets
-            f.flush()
-            os.fsync(f.fileno())
-    os.remove(file_path)
-    print(f"{GREEN}✅ File '{file_path}' telah dihapus secara aman ({passes} passes).{RESET}")
-    logger.info(f"File '{file_path}' dihapus secara aman ({passes} passes).")
+                        if i == passes - 1:
+                            # Last pass, write zeros
+                            chunk = b'\x00' * current_chunk_size
+                        elif i == passes - 2:
+                            # Second to last pass, write ones
+                             chunk = b'\xff' * current_chunk_size
+                        else:
+                            # Other passes, write random data
+                            chunk = secrets.token_bytes(current_chunk_size)
+
+                        f.write(chunk)
+                        remaining_size -= current_chunk_size
+                        pbar.update(current_chunk_size)
+
+                f.flush()
+                os.fsync(f.fileno())
+        os.remove(file_path)
+        print(f"{GREEN}✅ File '{file_path}' telah dihapus secara aman ({passes} passes).{RESET}")
+        logger.info(f"File '{file_path}' dihapus secara aman ({passes} passes).")
+    except Exception as e:
+        print(f"{RED}❌ Error saat menghapus file '{file_path}' secara aman: {e}{RESET}")
+        logger.error(f"Error saat secure wipe file '{file_path}': {e}")
 
 def confirm_overwrite(file_path: str) -> bool:
     """Asks the user to confirm overwriting a file.
