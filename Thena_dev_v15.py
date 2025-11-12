@@ -314,6 +314,9 @@ def detect_debugging():
     Returns:
         True if a debugger is detected, False otherwise.
     """
+    # Temporarily disable anti-debugging to prevent unexpected script termination
+    return False
+
     methods = config.get("debug_detection_methods", [])
     for method_name in methods:
         method_func = globals().get(method_name)
