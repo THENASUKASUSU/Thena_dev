@@ -30,7 +30,7 @@ At its core, Thena_dev employs robust encryption algorithms like AES-256-GCM and
 
 1.  **Clone the repository:**
     ```bash
-    git clone https://github.com/your-username/thena-dev.git
+    git clone https://github.com/THENASUKASUSU/thena-dev.git
     cd thena-dev
     ```
 
