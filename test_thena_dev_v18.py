@@ -7,7 +7,7 @@ from unittest.mock import patch, mock_open
 
 # Add the path to the script to the system path
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
-from Thena_dev_v17 import (
+from Thena_dev_v18 import (
     config as global_config,
     encrypt_file_simple,
     decrypt_file_simple,
@@ -19,7 +19,7 @@ from Thena_dev_v17 import (
     secure_wipe_file
 )
 
-@patch('Thena_dev_v17.CONFIG_FILE', "thena_config_v17.json")
+@patch('Thena_dev_v18.CONFIG_FILE', "thena_config_v18.json")
 class TestThenaDev(unittest.TestCase):
 
     def setUp(self):
@@ -29,11 +29,11 @@ class TestThenaDev(unittest.TestCase):
         self.input_file = os.path.join(self.test_dir, "test_input.txt")
         self.encrypted_file = os.path.join(self.test_dir, "test_input.txt.encrypted")
         self.decrypted_file = os.path.join(self.test_dir, "test_output.txt")
-        self.master_key_file = ".master_key_encrypted_v17"
-        self.config_file = "thena_config_v17.json"
+        self.master_key_file = ".master_key_encrypted_v18"
+        self.config_file = "thena_config_v18.json"
 
         with open(self.input_file, "w") as f:
-            f.write("This is a test file for Thena_dev_v17.")
+            f.write("This is a test file for Thena_dev_v18.")
 
         # Lower the Argon2 time cost to speed up tests
         config = load_config()
@@ -167,15 +167,15 @@ class TestThenaDev(unittest.TestCase):
         success_dec, _ = decrypt_file_with_master_key(self.encrypted_file, self.decrypted_file, wrong_master_key)
         self.assertFalse(success_dec, "Master key decryption succeeded with the wrong password.")
 
-    @patch('Thena_dev_v17.encrypt_file_with_master_key')
-    @patch('Thena_dev_v17.load_or_create_master_key')
-    @patch('Thena_dev_v17.validate_password_keyfile', return_value=True)
+    @patch('Thena_dev_v18.encrypt_file_with_master_key')
+    @patch('Thena_dev_v18.load_or_create_master_key')
+    @patch('Thena_dev_v18.validate_password_keyfile', return_value=True)
     def test_main_encrypt_cli(self, mock_validate, mock_load_master_key, mock_encrypt):
         """Test the CLI for encryption."""
         mock_load_master_key.return_value = b'test_master_key'
         mock_encrypt.return_value = (True, self.encrypted_file)
         with patch('sys.argv', [
-            'Thena_dev_v17.py',
+            'Thena_dev_v18.py',
             '--encrypt',
             '-i', self.input_file,
             '-o', self.encrypted_file,
@@ -192,9 +192,9 @@ class TestThenaDev(unittest.TestCase):
                 hide_paths=False
             )
 
-    @patch('Thena_dev_v17.decrypt_file_with_master_key')
-    @patch('Thena_dev_v17.load_or_create_master_key')
-    @patch('Thena_dev_v17.validate_password_keyfile', return_value=True)
+    @patch('Thena_dev_v18.decrypt_file_with_master_key')
+    @patch('Thena_dev_v18.load_or_create_master_key')
+    @patch('Thena_dev_v18.validate_password_keyfile', return_value=True)
     def test_main_decrypt_cli(self, mock_validate, mock_load_master_key, mock_decrypt):
         """Test the CLI for decryption."""
         mock_load_master_key.return_value = b'test_master_key'
@@ -208,7 +208,7 @@ class TestThenaDev(unittest.TestCase):
             f.write("dummy master key data")
 
         with patch('sys.argv', [
-            'Thena_dev_v17.py',
+            'Thena_dev_v18.py',
             '--decrypt',
             '-i', self.encrypted_file,
             '-o', self.decrypted_file,
@@ -267,6 +267,101 @@ class TestThenaDev(unittest.TestCase):
         # 3. Decryption should fail
         success_dec, _ = decrypt_file_simple(self.encrypted_file, self.decrypted_file, password)
         self.assertFalse(success_dec, "Decryption succeeded for a corrupted file.")
+
+    def test_simple_encryption_with_header_encryption(self):
+        """Test simple encryption with header encryption enabled."""
+        # Enable header encryption for this test
+        global_config['custom_format_encrypt_header'] = True
+
+        password = "test_password_header"
+        success_enc, _ = encrypt_file_simple(self.input_file, self.encrypted_file, password)
+        self.assertTrue(success_enc, "Simple encryption with header encryption failed.")
+
+        success_dec, _ = decrypt_file_simple(self.encrypted_file, self.decrypted_file, password)
+        self.assertTrue(success_dec, "Simple decryption with header encryption failed.")
+
+        with open(self.input_file, "r") as f_in, open(self.decrypted_file, "r") as f_out:
+            self.assertEqual(f_in.read(), f_out.read(), "Decrypted content does not match original with header encryption.")
+
+        # Reset the config
+        global_config['custom_format_encrypt_header'] = False
+
+    def test_master_key_encryption_with_header_encryption(self):
+        """Test master key encryption with header encryption enabled."""
+        # Enable header encryption for this test
+        global_config['custom_format_encrypt_header'] = True
+
+        password = "master_password_header"
+        master_key = load_or_create_master_key(password, None)
+        self.assertIsNotNone(master_key, "Master key creation failed for header encryption test.")
+
+        success_enc, _ = encrypt_file_with_master_key(self.input_file, self.encrypted_file, master_key)
+        self.assertTrue(success_enc, "Master key encryption with header encryption failed.")
+
+        success_dec, _ = decrypt_file_with_master_key(self.encrypted_file, self.decrypted_file, master_key)
+        self.assertTrue(success_dec, "Master key decryption with header encryption failed.")
+
+        with open(self.input_file, "r") as f_in, open(self.decrypted_file, "r") as f_out:
+            self.assertEqual(f_in.read(), f_out.read(), "Decrypted content does not match original with master key and header encryption.")
+
+        # Reset the config
+        global_config['custom_format_encrypt_header'] = False
+
+    def test_simple_header_encryption_mismatch_fail(self):
+        """Test simple decryption fails when header encryption is expected but not present."""
+        # Encrypt with header encryption
+        global_config['custom_format_encrypt_header'] = True
+        password = "test_password_mismatch"
+        success_enc, _ = encrypt_file_simple(self.input_file, self.encrypted_file, password)
+        self.assertTrue(success_enc, "Encryption with header encryption failed.")
+
+        # Try to decrypt without header encryption
+        global_config['custom_format_encrypt_header'] = False
+        success_dec, _ = decrypt_file_simple(self.encrypted_file, self.decrypted_file, password)
+        self.assertFalse(success_dec, "Decryption succeeded with a header encryption mismatch.")
+
+    def test_master_key_header_encryption_mismatch_fail(self):
+        """Test master key decryption fails when header encryption is expected but not present."""
+        # Encrypt with header encryption
+        global_config['custom_format_encrypt_header'] = True
+        password = "master_password_mismatch"
+        master_key = load_or_create_master_key(password, None)
+        self.assertIsNotNone(master_key, "Master key creation failed.")
+        success_enc, _ = encrypt_file_with_master_key(self.input_file, self.encrypted_file, master_key)
+        self.assertTrue(success_enc, "Master key encryption with header encryption failed.")
+
+        # Try to decrypt without header encryption
+        global_config['custom_format_encrypt_header'] = False
+        success_dec, _ = decrypt_file_with_master_key(self.encrypted_file, self.decrypted_file, master_key)
+        self.assertFalse(success_dec, "Master key decryption succeeded with a header encryption mismatch.")
+
+    def test_simple_decryption_with_wrong_mode_marker(self):
+        """Test that simple decryption fails if the file was encrypted with master key mode."""
+        # 1. Encrypt with master key mode (marker 0x02)
+        password = "master_password"
+        master_key = load_or_create_master_key(password, None)
+        self.assertIsNotNone(master_key, "Master key creation failed.")
+        success_enc, _ = encrypt_file_with_master_key(self.input_file, self.encrypted_file, master_key)
+        self.assertTrue(success_enc, "Master key encryption failed.")
+
+        # 2. Try to decrypt with simple mode (expects marker 0x01)
+        simple_password = "simple_password"
+        success_dec, _ = decrypt_file_simple(self.encrypted_file, self.decrypted_file, simple_password)
+        self.assertFalse(success_dec, "Simple decryption succeeded on a master key encrypted file.")
+
+    def test_master_key_decryption_with_wrong_mode_marker(self):
+        """Test that master key decryption fails if the file was encrypted with simple mode."""
+        # 1. Encrypt with simple mode (marker 0x01)
+        password = "simple_password"
+        success_enc, _ = encrypt_file_simple(self.input_file, self.encrypted_file, password)
+        self.assertTrue(success_enc, "Simple encryption failed.")
+
+        # 2. Try to decrypt with master key mode (expects marker 0x02)
+        master_key_password = "master_password"
+        master_key = load_or_create_master_key(master_key_password, None)
+        self.assertIsNotNone(master_key, "Master key creation failed.")
+        success_dec, _ = decrypt_file_with_master_key(self.encrypted_file, self.decrypted_file, master_key)
+        self.assertFalse(success_dec, "Master key decryption succeeded on a simple encrypted file.")
 
 
 class TestSecureWipeFile(unittest.TestCase):
