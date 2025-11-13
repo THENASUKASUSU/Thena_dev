@@ -2899,8 +2899,6 @@ def main():
                     print("\n" + "─" * 50)
                     print(f"{RED}❌ File input tidak ditemukan.{RESET}")
                     print("─" * 50)
-                    input(f"\n{CYAN}Tekan Enter untuk kembali ke menu utama...{RESET}")
-                    clear_screen()
                     continue
 
                 if not check_file_size_limit(input_path):
