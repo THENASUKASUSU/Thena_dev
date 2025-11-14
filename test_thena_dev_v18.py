@@ -12,9 +12,14 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 import Thena_dev_v18 as thena
 
 class TestThenaDev(unittest.TestCase):
+    """Test suite for the Thena_dev_v18 encryption script."""
 
     def setUp(self):
-        """Set up test files and configuration."""
+        """Set up the test environment before each test.
+
+        This method creates a test directory, a sample input file, and patches
+        the script's configuration to use test-specific values.
+        """
         self.test_dir = "test_data"
         os.makedirs(self.test_dir, exist_ok=True)
         self.input_file = os.path.join(self.test_dir, "test_input.txt")
@@ -36,7 +41,11 @@ class TestThenaDev(unittest.TestCase):
         self.config_patcher.start()
 
     def tearDown(self):
-        """Clean up test files."""
+        """Clean up the test environment after each test.
+
+        This method stops the config patcher and removes the test directory
+        and any created files to ensure a clean state for subsequent tests.
+        """
         self.config_patcher.stop()
         if os.path.exists(self.test_dir):
             shutil.rmtree(self.test_dir)
@@ -50,7 +59,11 @@ class TestThenaDev(unittest.TestCase):
     @patch('Thena_dev_v18.print_error_box')
     @patch('Thena_dev_v18.print_loading_progress')
     def test_simple_encryption_decryption_success(self, mock_loading, mock_error, mock_box, mock_input):
-        """Test successful encryption and decryption in simple mode."""
+        """Test successful encryption and decryption in simple mode.
+
+        This test verifies that a file can be encrypted and then decrypted
+        successfully, and that the decrypted content matches the original.
+        """
         password = "test_password"
         success_enc, _ = thena.encrypt_file_simple(self.input_file, self.encrypted_file, password)
         self.assertTrue(success_enc, "Simple encryption failed.")
@@ -68,7 +81,11 @@ class TestThenaDev(unittest.TestCase):
     @patch('Thena_dev_v18.print_error_box')
     @patch('Thena_dev_v18.print_loading_progress')
     def test_simple_decryption_wrong_password(self, mock_loading, mock_error, mock_box, mock_input):
-        """Test that simple decryption fails with the wrong password."""
+        """Test that simple decryption fails with the wrong password.
+
+        This test ensures that the script correctly handles incorrect passwords
+        and does not decrypt the file or create an output file.
+        """
         password = "test_password"
         wrong_password = "wrong_password"
 
@@ -84,7 +101,11 @@ class TestThenaDev(unittest.TestCase):
     @patch('Thena_dev_v18.print_error_box')
     @patch('Thena_dev_v18.print_loading_progress')
     def test_master_key_encryption_decryption_success(self, mock_loading, mock_error, mock_box, mock_input):
-        """Test successful encryption and decryption with a master key."""
+        """Test successful encryption and decryption with a master key.
+
+        This test verifies the master key functionality, ensuring that a file
+        can be encrypted and decrypted correctly using the master key system.
+        """
         password = "test_password"
         master_key = thena.load_or_create_master_key(password, None)
         self.assertIsNotNone(master_key, "Master key creation failed.")
@@ -103,7 +124,11 @@ class TestThenaDev(unittest.TestCase):
     @patch('Thena_dev_v18.print_error_box')
     @patch('Thena_dev_v18.print_loading_progress')
     def test_master_key_decryption_wrong_password(self, mock_loading, mock_error, mock_box, mock_input):
-        """Test that master key decryption fails with the wrong password."""
+        """Test that master key decryption fails with the wrong password.
+
+        This test ensures that the master key cannot be loaded with an
+        incorrect password, preventing unauthorized decryption.
+        """
         password = "test_password"
         wrong_password = "wrong_password"
 
@@ -123,7 +148,11 @@ class TestThenaDev(unittest.TestCase):
     @patch('Thena_dev_v18.encrypt_file_with_master_key')
     @patch('Thena_dev_v18.load_or_create_master_key')
     def test_main_encrypt_cli(self, mock_load_master_key, mock_encrypt, mock_error, mock_box, mock_input, mock_exit):
-        """Test the CLI for encryption."""
+        """Test the command-line interface for encryption.
+
+        This test simulates running the script from the command line to perform
+        encryption and verifies that the correct functions are called.
+        """
         mock_load_master_key.return_value = b'test_master_key'
         mock_encrypt.return_value = (True, self.encrypted_file)
         with patch('sys.argv', ['Thena_dev_v18.py', '--encrypt', '-i', self.input_file, '-o', self.encrypted_file, '-p', 'password']):
@@ -138,7 +167,11 @@ class TestThenaDev(unittest.TestCase):
     @patch('Thena_dev_v18.decrypt_file_with_master_key')
     @patch('Thena_dev_v18.load_or_create_master_key')
     def test_main_decrypt_cli(self, mock_load_master_key, mock_decrypt, mock_error, mock_box, mock_input, mock_exit):
-        """Test the CLI for decryption."""
+        """Test the command-line interface for decryption.
+
+        This test simulates running the script from the command line to perform
+        decryption and verifies that the correct functions are called.
+        """
         mock_load_master_key.return_value = b'test_master_key'
         mock_decrypt.return_value = (True, self.decrypted_file)
 
@@ -155,7 +188,12 @@ class TestThenaDev(unittest.TestCase):
     @patch('Thena_dev_v18.print_error_box')
     @patch('Thena_dev_v18.print_loading_progress')
     def test_decoy_blocks_feature(self, mock_loading, mock_error, mock_box, mock_input):
-        """Test that decoy blocks are added and ignored correctly."""
+        """Test that decoy blocks are added and ignored correctly.
+
+        This test verifies that when the decoy blocks feature is enabled, the
+        encrypted file size increases, but the decrypted content remains
+        unaffected and correct.
+        """
         password = "test_password"
         # Enable decoy blocks in config
         thena.config['enable_decoy_blocks'] = True

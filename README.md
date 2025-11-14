@@ -24,7 +24,6 @@ At its core, Thena_dev employs robust encryption algorithms like AES-256-GCM and
 - `cryptography`
 - `pycryptodome`
 - `argon2-cffi`
-- `tqdm`
 
 ## Installation
 
@@ -36,12 +35,12 @@ At its core, Thena_dev employs robust encryption algorithms like AES-256-GCM and
 
 2.  **Install the required dependencies:**
     ```bash
-    pip install cryptography pycryptodome argon2-cffi tqdm
+    pip install cryptography pycryptodome argon2-cffi
     ```
 
 ## Configuration
 
-The tool uses a `thena_config_v16.json` file to manage its settings. If this file is not found, it will be created with default values upon the first run. You can modify this file to customize the tool's behavior.
+The tool uses a `thena_config_v18.json` file to manage its settings. If this file is not found, it will be created with default values upon the first run. You can modify this file to customize the tool's behavior.
 
 Key configuration options include:
 
@@ -58,7 +57,7 @@ Key configuration options include:
 To start the tool in interactive mode, run the script without any arguments:
 
 ```bash
-python3 Thena_dev_v16.py
+python3 Thena_dev_v18.py
 ```
 
 You will be guided through a menu to select an operation (encrypt or decrypt) and provide the necessary inputs.
@@ -68,13 +67,13 @@ You will be guided through a menu to select an operation (encrypt or decrypt) an
 #### Simple Encryption
 
 ```bash
-python3 Thena_dev_v16.py --encrypt -i <input_file> -o <output_file> -p <password>
+python3 Thena_dev_v18.py --encrypt -i <input_file> -o <output_file> -p <password>
 ```
 
 #### Simple Decryption
 
 ```bash
-python3 Thena_dev_v16.py --decrypt -i <input_file> -o <output_file> -p <password>
+python3 Thena_dev_v18.py --decrypt -i <input_file> -o <output_file> -p <password>
 ```
 
 #### Encryption with a Keyfile
@@ -82,13 +81,13 @@ python3 Thena_dev_v16.py --decrypt -i <input_file> -o <output_file> -p <password
 For enhanced security, you can use a keyfile in addition to a password.
 
 ```bash
-python3 Thena_dev_v16.py --encrypt -i <input_file> -o <output_file> -p <password> -k <keyfile_path>
+python3 Thena_dev_v18.py --encrypt -i <input_file> -o <output_file> -p <password> -k <keyfile_path>
 ```
 
 #### Decryption with a Keyfile
 
 ```bash
-python3 Thena_dev_v16.py --decrypt -i <input_file> -o <output_file> -p <password> -k <keyfile_path>
+python3 Thena_dev_v18.py --decrypt -i <input_file> -o <output_file> -p <password> -k <keyfile_path>
 ```
 
 #### Batch Processing
@@ -96,13 +95,13 @@ python3 Thena_dev_v16.py --decrypt -i <input_file> -o <output_file> -p <password
 To encrypt all files in a directory:
 
 ```bash
-python3 Thena_dev_v16.py --batch --encrypt --dir <directory_path> -p <password>
+python3 Thena_dev_v18.py --batch --encrypt --dir <directory_path> -p <password>
 ```
 
 To decrypt all `.encrypted` files in a directory:
 
 ```bash
-python3 Thena_dev_v16.py --batch --decrypt --dir <directory_path> -p <password>
+python3 Thena_dev_v18.py --batch --decrypt --dir <directory_path> -p <password>
 ```
 
 ### All CLI Arguments
@@ -132,11 +131,11 @@ Thena_dev includes several advanced security features to protect against tamperi
 -   **Secure Memory Handling**: Sensitive data in memory (like encryption keys) is securely overwritten when no longer needed.
 -   **Custom File Format**: The encrypted file format includes features like shuffled parts and an encrypted header to obscure its structure.
 
-These features can be enabled or disabled in the `thena_config_v16.json` file.
+These features can be enabled or disabled in the `thena_config_v18.json` file.
 
 ## Logging
 
-The tool generates a log file, `thena_encryptor_v16.log`, which records information about its operations. The level of detail can be configured with the `log_level` setting in the configuration file.
+The tool generates a log file, `thena_encryptor.log`, which records information about its operations. The level of detail can be configured with the `log_level` setting in the configuration file.
 
 ## License
 

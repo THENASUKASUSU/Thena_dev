@@ -484,9 +484,9 @@ def unshuffle_dynamic_header_parts(parts_list, input_file_path: str, data_size: 
     order.
 
     Args:
-        parts_list: A list of shuffled header parts.
-        input_file_path: The path to the input file.
-        data_size: The size of the input data.
+        parts_list (list): A list of shuffled header parts.
+        input_file_path (str): The path to the input file.
+        data_size (int): The size of the input data.
 
     Returns:
         A dictionary containing the unshuffled header parts, or None if an
@@ -517,12 +517,12 @@ def derive_key_for_header(base_key: bytes, header_salt: bytes) -> bytes:
     """Derives a key for encrypting the dynamic header using HKDF.
 
     Args:
-        base_key: The key to derive the header key from (either the master
+        base_key (bytes): The key to derive the header key from (either the master
             key or the password-derived key).
-        header_salt: The salt to use for the header key derivation.
+        header_salt (bytes): The salt to use for the header key derivation.
 
     Returns:
-        The derived header key.
+        bytes: The derived header key.
     """
     if not CRYPTOGRAPHY_AVAILABLE:
         print(f"{RED}❌ Error: HKDF (untuk header) memerlukan modul 'cryptography'.{RESET}")
@@ -664,7 +664,12 @@ def setup_logging():
     logger.info("=== Encryptor V18 Dimulai ===")
 
 def print_error_box(message, width=80):
-    """Prints an error message in a box."""
+    """Prints an error message in a formatted box.
+
+    Args:
+        message (str): The error message to display.
+        width (int): The width of the box.
+    """
     border_color = RED
     text_color = WHITE
     reset = RESET
@@ -673,7 +678,7 @@ def print_error_box(message, width=80):
     print(f"{border_color}╰" + "─" * (width - 2) + f"╯{reset}")
 
 def print_loading_progress():
-    """Prints a loading progress bar."""
+    """Prints a simple loading progress indicator to the console."""
     for i in range(11):
         progress = i * 10
         print(f"Memproses... {progress}%", end="\r")
@@ -699,7 +704,11 @@ else:
 
 # --- Fungsi Utilitas ---
 def clear_screen():
-    """Clears the console screen."""
+    """Clears the console screen.
+
+    This function checks the operating system and uses the appropriate
+    command to clear the screen.
+    """
     # Hardening (V8): Cek sistem operasi
     os_name = platform.system().lower()
     if os_name == "windows":
@@ -711,10 +720,10 @@ def calculate_checksum(data) -> bytes:
     """Calculates the SHA-256 checksum of the given data.
 
     Args:
-        data: The data to calculate the checksum for.
+        data (bytes): The data to calculate the checksum for.
 
     Returns:
-        The SHA-256 checksum of the data.
+        bytes: The SHA-256 checksum of the data.
     """
     return hashlib.sha256(data).digest()
 
@@ -1290,10 +1299,10 @@ def compress_data(data) -> bytes:
     """Compresses data using zlib.
 
     Args:
-        data: The data to compress.
+        data (bytes): The data to compress.
 
     Returns:
-        The compressed data.
+        bytes: The compressed data.
     """
     compression_level = config.get("compression_level", 6)
     try:
@@ -1309,10 +1318,10 @@ def decompress_data(data) -> bytes:
     """Decompresses data using zlib.
 
     Args:
-        data: The data to decompress.
+        data (bytes): The data to decompress.
 
     Returns:
-        The decompressed data.
+        bytes: The decompressed data.
     """
     try:
         decompressed_data = zlib.decompress(data)
@@ -1330,12 +1339,12 @@ def encrypt_file_simple(input_path: str, output_path: str, password: str, keyfil
     This function does not use a master key.
 
     Args:
-        input_path: The path to the file to encrypt.
-        output_path: The path to write the encrypted file to.
-        password: The password to use for encryption.
-        keyfile_path: The path to the keyfile to use for encryption.
-        add_random_padding: Whether to add random padding to the file.
-        hide_paths: Whether to hide the file paths in the output.
+        input_path (str): The path to the file to encrypt.
+        output_path (str): The path to write the encrypted file to.
+        password (str): The password to use for encryption.
+        keyfile_path (str): The path to the keyfile to use for encryption.
+        add_random_padding (bool): Whether to add random padding to the file.
+        hide_paths (bool): Whether to hide the file paths in the output.
 
     Returns:
         A tuple containing a boolean indicating success and the path to the
@@ -1631,11 +1640,11 @@ def decrypt_file_simple(input_path: str, output_path: str, password: str, keyfil
     This function does not use a master key.
 
     Args:
-        input_path: The path to the file to decrypt.
-        output_path: The path to write the decrypted file to.
-        password: The password to use for decryption.
-        keyfile_path: The path to the keyfile to use for decryption.
-        hide_paths: Whether to hide the file paths in the output.
+        input_path (str): The path to the file to decrypt.
+        output_path (str): The path to write the decrypted file to.
+        password (str): The password to use for decryption.
+        keyfile_path (str): The path to the keyfile to use for decryption.
+        hide_paths (bool): Whether to hide the file paths in the output.
 
     Returns:
         A tuple containing a boolean indicating success and the path to the
@@ -1918,11 +1927,11 @@ def encrypt_file_with_master_key(input_path: str, output_path: str, master_key: 
     """Encrypts a file using a master key.
 
     Args:
-        input_path: The path to the file to encrypt.
-        output_path: The path to write the encrypted file to.
-        master_key: The master key to use for encryption.
-        add_random_padding: Whether to add random padding to the file.
-        hide_paths: Whether to hide the file paths in the output.
+        input_path (str): The path to the file to encrypt.
+        output_path (str): The path to write the encrypted file to.
+        master_key (bytes): The master key to use for encryption.
+        add_random_padding (bool): Whether to add random padding to the file.
+        hide_paths (bool): Whether to hide the file paths in the output.
 
     Returns:
         A tuple containing a boolean indicating success and the path to the
@@ -2225,10 +2234,10 @@ def decrypt_file_with_master_key(input_path: str, output_path: str, master_key: 
     """Decrypts a file using a master key.
 
     Args:
-        input_path: The path to the file to decrypt.
-        output_path: The path to write the decrypted file to.
-        master_key: The master key to use for decryption.
-        hide_paths: Whether to hide the file paths in the output.
+        input_path (str): The path to the file to decrypt.
+        output_path (str): The path to write the decrypted file to.
+        master_key (bytes): The master key to use for decryption.
+        hide_paths (bool): Whether to hide the file paths in the output.
 
     Returns:
         A tuple containing a boolean indicating success and the path to the
