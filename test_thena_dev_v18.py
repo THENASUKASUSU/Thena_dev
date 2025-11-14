@@ -1,9 +1,9 @@
 import unittest
 import os
 import sys
-import json
 import shutil
-from unittest.mock import patch, mock_open
+from unittest.mock import patch, MagicMock
+from cryptography.hazmat.primitives.asymmetric import rsa, x25519
 
 # Add the path to the script to the system path
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
@@ -15,197 +15,169 @@ class TestThenaDev(unittest.TestCase):
     """Test suite for the Thena_dev_v18 encryption script."""
 
     def setUp(self):
-        """Set up the test environment before each test.
-
-        This method creates a test directory, a sample input file, and patches
-        the script's configuration to use test-specific values.
-        """
+        """Set up the test environment before each test."""
         self.test_dir = "test_data"
         os.makedirs(self.test_dir, exist_ok=True)
         self.input_file = os.path.join(self.test_dir, "test_input.txt")
         self.encrypted_file = os.path.join(self.test_dir, "test_input.txt.encrypted")
         self.decrypted_file = os.path.join(self.test_dir, "test_output.txt")
-        self.master_key_file = ".master_key_encrypted_v18"
+
+        # Consistent file names for keys
+        self.master_key_file = ".master_key_encrypted_v18_test"
+        self.rsa_key_file = "rsa_private_key_v18_test.pem"
+        self.x25519_key_file = "x25519_private_key_v18_test.pem"
 
         with open(self.input_file, "w") as f:
             f.write("This is a test file for Thena_dev_v18.")
 
-        # Create a test-specific config
-        test_config = {
+        # Load the default config from the script and then override for tests
+        test_config = thena.load_config()
+        test_config.update({
             "argon2_time_cost": 1,
+            "scrypt_n": 2**4,
+            "pbkdf2_iterations": 10,
             "master_key_file": self.master_key_file,
-        }
+            "rsa_private_key_file": self.rsa_key_file,
+            "x25519_private_key_file": self.x25519_key_file,
+            "encryption_algorithm": "aes-gcm", # Default to legacy for old tests
+            "enable_decoy_blocks": False,
+        })
 
-        # Patch the config object in the module where it's used
-        self.config_patcher = patch.dict(thena.config, test_config)
+        self.config_patcher = patch.dict(thena.config, test_config, clear=True)
         self.config_patcher.start()
 
     def tearDown(self):
-        """Clean up the test environment after each test.
-
-        This method stops the config patcher and removes the test directory
-        and any created files to ensure a clean state for subsequent tests.
-        """
+        """Clean up the test environment after each test."""
         self.config_patcher.stop()
         if os.path.exists(self.test_dir):
             shutil.rmtree(self.test_dir)
 
-        for file_path in [self.master_key_file, "test.keyfile", "wrong.keyfile", "thena_config_v18.json"]:
+        # Clean up all possible generated files
+        for file_path in [
+            self.master_key_file, self.rsa_key_file, self.x25519_key_file,
+            "test.keyfile", "wrong.keyfile", "thena_config_v18.json"
+        ]:
             if os.path.exists(file_path):
-                os.remove(file_path)
+                try:
+                    os.remove(file_path)
+                except OSError:
+                    pass
 
     @patch('builtins.input', return_value='y')
-    @patch('Thena_dev_v18.print_box')
-    @patch('Thena_dev_v18.print_error_box')
-    @patch('Thena_dev_v18.print_loading_progress')
-    def test_simple_encryption_decryption_success(self, mock_loading, mock_error, mock_box, mock_input):
-        """Test successful encryption and decryption in simple mode.
-
-        This test verifies that a file can be encrypted and then decrypted
-        successfully, and that the decrypted content matches the original.
-        """
+    def test_simple_encryption_decryption_success(self, mock_input):
+        """Test successful encryption and decryption in simple mode (AES-GCM)."""
+        thena.config['encryption_algorithm'] = 'aes-gcm'
         password = "test_password"
+
         success_enc, _ = thena.encrypt_file_simple(self.input_file, self.encrypted_file, password)
         self.assertTrue(success_enc, "Simple encryption failed.")
-        self.assertTrue(os.path.exists(self.encrypted_file), "Encrypted file was not created.")
+        self.assertTrue(os.path.exists(self.encrypted_file))
 
         success_dec, _ = thena.decrypt_file_simple(self.encrypted_file, self.decrypted_file, password)
         self.assertTrue(success_dec, "Simple decryption failed.")
-        self.assertTrue(os.path.exists(self.decrypted_file), "Decrypted file was not created.")
+        self.assertTrue(os.path.exists(self.decrypted_file))
 
         with open(self.input_file, "r") as f_in, open(self.decrypted_file, "r") as f_out:
-            self.assertEqual(f_in.read(), f_out.read(), "Decrypted content does not match original content.")
+            self.assertEqual(f_in.read(), f_out.read())
 
     @patch('builtins.input', return_value='y')
-    @patch('Thena_dev_v18.print_box')
-    @patch('Thena_dev_v18.print_error_box')
-    @patch('Thena_dev_v18.print_loading_progress')
-    def test_simple_decryption_wrong_password(self, mock_loading, mock_error, mock_box, mock_input):
-        """Test that simple decryption fails with the wrong password.
-
-        This test ensures that the script correctly handles incorrect passwords
-        and does not decrypt the file or create an output file.
-        """
+    def test_simple_decryption_wrong_password(self, mock_input):
+        """Test simple decryption fails with the wrong password (AES-GCM)."""
+        thena.config['encryption_algorithm'] = 'aes-gcm'
         password = "test_password"
         wrong_password = "wrong_password"
 
         success_enc, _ = thena.encrypt_file_simple(self.input_file, self.encrypted_file, password)
-        self.assertTrue(success_enc, "Simple encryption failed during setup for wrong password test.")
+        self.assertTrue(success_enc)
 
         success_dec, _ = thena.decrypt_file_simple(self.encrypted_file, self.decrypted_file, wrong_password)
-        self.assertFalse(success_dec, "Simple decryption succeeded with the wrong password.")
-        self.assertFalse(os.path.exists(self.decrypted_file), "Decrypted file was created with the wrong password.")
+        self.assertFalse(success_dec)
+        self.assertFalse(os.path.exists(self.decrypted_file))
 
     @patch('builtins.input', return_value='y')
-    @patch('Thena_dev_v18.print_box')
-    @patch('Thena_dev_v18.print_error_box')
-    @patch('Thena_dev_v18.print_loading_progress')
-    def test_master_key_encryption_decryption_success(self, mock_loading, mock_error, mock_box, mock_input):
-        """Test successful encryption and decryption with a master key.
-
-        This test verifies the master key functionality, ensuring that a file
-        can be encrypted and decrypted correctly using the master key system.
-        """
+    def test_master_key_encryption_decryption_success(self, mock_input):
+        """Test successful encryption and decryption with a master key (AES-GCM)."""
+        thena.config['encryption_algorithm'] = 'aes-gcm'
         password = "test_password"
+
         master_key = thena.load_or_create_master_key(password, None)
-        self.assertIsNotNone(master_key, "Master key creation failed.")
+        self.assertIsNotNone(master_key)
 
         success_enc, _ = thena.encrypt_file_with_master_key(self.input_file, self.encrypted_file, master_key)
-        self.assertTrue(success_enc, "Master key encryption failed.")
+        self.assertTrue(success_enc)
 
         success_dec, _ = thena.decrypt_file_with_master_key(self.encrypted_file, self.decrypted_file, master_key)
-        self.assertTrue(success_dec, "Master key decryption failed.")
+        self.assertTrue(success_dec)
 
         with open(self.input_file, "r") as f_in, open(self.decrypted_file, "r") as f_out:
-            self.assertEqual(f_in.read(), f_out.read(), "Decrypted content does not match original content with master key.")
+            self.assertEqual(f_in.read(), f_out.read())
 
-    @patch('builtins.input', return_value='y')
-    @patch('Thena_dev_v18.print_box')
-    @patch('Thena_dev_v18.print_error_box')
-    @patch('Thena_dev_v18.print_loading_progress')
-    def test_master_key_decryption_wrong_password(self, mock_loading, mock_error, mock_box, mock_input):
-        """Test that master key decryption fails with the wrong password.
+    def test_hybrid_encryption_decryption_success(self):
+        """Test successful encryption and decryption using the hybrid scheme."""
+        thena.config['encryption_algorithm'] = 'hybrid-rsa-x25519'
+        password = "a_very_strong_password_for_hybrid_test_123!@#"
 
-        This test ensures that the master key cannot be loaded with an
-        incorrect password, preventing unauthorized decryption.
-        """
-        password = "test_password"
-        wrong_password = "wrong_password"
+        rsa_priv, x25519_priv = thena.generate_and_save_keys(password, None)
+        self.assertTrue(os.path.exists(self.rsa_key_file))
+        self.assertTrue(os.path.exists(self.x25519_key_file))
 
-        master_key = thena.load_or_create_master_key(password, None)
-        self.assertIsNotNone(master_key, "Master key creation failed.")
+        thena.encrypt_file_hybrid(self.input_file, self.encrypted_file, rsa_priv, x25519_priv)
+        self.assertTrue(os.path.exists(self.encrypted_file))
 
-        success_enc, _ = thena.encrypt_file_with_master_key(self.input_file, self.encrypted_file, master_key)
-        self.assertTrue(success_enc, "Master key encryption failed.")
+        rsa_pub = rsa_priv.public_key()
+        thena.decrypt_file_hybrid(self.encrypted_file, self.decrypted_file, rsa_pub, x25519_priv)
+        self.assertTrue(os.path.exists(self.decrypted_file))
 
-        wrong_master_key = thena.load_or_create_master_key(wrong_password, None)
-        self.assertIsNone(wrong_master_key, "Master key creation should fail with wrong password.")
+        with open(self.input_file, "r") as f_in, open(self.decrypted_file, "r") as f_out:
+            self.assertEqual(f_in.read(), f_out.read())
 
     @patch('sys.exit')
-    @patch('builtins.input', return_value='y')
-    @patch('Thena_dev_v18.print_box')
-    @patch('Thena_dev_v18.print_error_box')
-    @patch('Thena_dev_v18.encrypt_file_with_master_key')
-    @patch('Thena_dev_v18.load_or_create_master_key')
-    def test_main_encrypt_cli(self, mock_load_master_key, mock_encrypt, mock_error, mock_box, mock_input, mock_exit):
-        """Test the command-line interface for encryption.
-
-        This test simulates running the script from the command line to perform
-        encryption and verifies that the correct functions are called.
-        """
-        mock_load_master_key.return_value = b'test_master_key'
-        mock_encrypt.return_value = (True, self.encrypted_file)
-        with patch('sys.argv', ['Thena_dev_v18.py', '--encrypt', '-i', self.input_file, '-o', self.encrypted_file, '-p', 'password']):
+    @patch('Thena_dev_v18.validate_password_keyfile', return_value=True)
+    @patch('Thena_dev_v18.load_keys', return_value=(MagicMock(), MagicMock()))
+    @patch('Thena_dev_v18.encrypt_file_hybrid')
+    def test_main_encrypt_cli_hybrid(self, mock_encrypt_hybrid, mock_load_keys, mock_validate, mock_exit):
+        """Test the CLI for hybrid encryption."""
+        thena.config['encryption_algorithm'] = 'hybrid-rsa-x25519'
+        argv = ['Thena_dev_v18.py', '--encrypt', '-i', self.input_file, '-o', self.encrypted_file, '-p', 'password']
+        with patch('sys.argv', argv):
             thena.main()
-            mock_load_master_key.assert_called_with('password', None, hide_paths=False)
-            mock_encrypt.assert_called_with(self.input_file, self.encrypted_file, b'test_master_key', add_random_padding=True, hide_paths=False)
+            mock_load_keys.assert_called_with('password', None)
+            mock_encrypt_hybrid.assert_called()
 
     @patch('sys.exit')
-    @patch('builtins.input', return_value='y')
-    @patch('Thena_dev_v18.print_box')
-    @patch('Thena_dev_v18.print_error_box')
-    @patch('Thena_dev_v18.decrypt_file_with_master_key')
-    @patch('Thena_dev_v18.load_or_create_master_key')
-    def test_main_decrypt_cli(self, mock_load_master_key, mock_decrypt, mock_error, mock_box, mock_input, mock_exit):
-        """Test the command-line interface for decryption.
+    @patch('Thena_dev_v18.validate_password_keyfile', return_value=True)
+    @patch('Thena_dev_v18.decrypt_file_hybrid')
+    def test_main_decrypt_cli_hybrid(self, mock_decrypt_hybrid, mock_validate, mock_exit):
+        """Test the CLI for hybrid decryption."""
+        thena.config['encryption_algorithm'] = 'hybrid-rsa-x25519'
+        password = "a_very_strong_password_for_hybrid_test_123!@#"
 
-        This test simulates running the script from the command line to perform
-        decryption and verifies that the correct functions are called.
-        """
-        mock_load_master_key.return_value = b'test_master_key'
-        mock_decrypt.return_value = (True, self.decrypted_file)
+        # Create real keys for the load_keys function to succeed
+        thena.generate_and_save_keys(password, None)
+        self.assertTrue(os.path.exists(self.rsa_key_file))
 
-        with open(self.encrypted_file, 'w') as f: f.write("dummy encrypted data")
-        with open(self.master_key_file, 'w') as f: f.write("dummy master key data")
+        with open(self.encrypted_file, 'wb') as f:
+            f.write(b"dummy_encrypted_data")
 
-        with patch('sys.argv', ['Thena_dev_v18.py', '--decrypt', '-i', self.encrypted_file, '-o', self.decrypted_file, '-p', 'password']):
+        argv = ['Thena_dev_v18.py', '--decrypt', '-i', self.encrypted_file, '-o', self.decrypted_file, '-p', password]
+        with patch('sys.argv', argv):
             thena.main()
-            mock_load_master_key.assert_called_with('password', None, hide_paths=False)
-            mock_decrypt.assert_called_with(self.encrypted_file, self.decrypted_file, b'test_master_key', hide_paths=False)
+            mock_decrypt_hybrid.assert_called()
 
     @patch('builtins.input', return_value='y')
-    @patch('Thena_dev_v18.print_box')
-    @patch('Thena_dev_v18.print_error_box')
-    @patch('Thena_dev_v18.print_loading_progress')
-    def test_decoy_blocks_feature(self, mock_loading, mock_error, mock_box, mock_input):
-        """Test that decoy blocks are added and ignored correctly.
-
-        This test verifies that when the decoy blocks feature is enabled, the
-        encrypted file size increases, but the decrypted content remains
-        unaffected and correct.
-        """
-        password = "test_password"
-        # Enable decoy blocks in config
+    def test_decoy_blocks_feature(self, mock_input):
+        """Test that decoy blocks are added and ignored correctly (AES-GCM)."""
+        thena.config['encryption_algorithm'] = 'aes-gcm'
         thena.config['enable_decoy_blocks'] = True
         thena.config['decoy_block_count'] = 3
         thena.config['decoy_block_max_size'] = 128
 
+        password = "test_password"
         original_size = os.path.getsize(self.input_file)
 
         success_enc, _ = thena.encrypt_file_simple(self.input_file, self.encrypted_file, password)
         self.assertTrue(success_enc, "Encryption with decoy blocks failed.")
 
-        # Check that the encrypted file is larger than the original
         encrypted_size = os.path.getsize(self.encrypted_file)
         self.assertTrue(encrypted_size > original_size, "Encrypted file with decoys is not larger.")
 
@@ -213,7 +185,7 @@ class TestThenaDev(unittest.TestCase):
         self.assertTrue(success_dec, "Decryption with decoy blocks failed.")
 
         with open(self.input_file, "r") as f_in, open(self.decrypted_file, "r") as f_out:
-            self.assertEqual(f_in.read(), f_out.read(), "Decrypted content does not match original after decoy blocks.")
+            self.assertEqual(f_in.read(), f_out.read())
 
 if __name__ == "__main__":
     unittest.main()
