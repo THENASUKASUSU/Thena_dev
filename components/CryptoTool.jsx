@@ -231,28 +231,28 @@ function CryptoTool() {
       id: 'aes',
       label: 'AES',
       title: 'Advanced Encryption Standard',
-      description: 'Symmetric encryption algorithm using the same key for encryption and decryption',
+      description: 'AES is a symmetric encryption algorithm that uses the same key for both encryption and decryption. It is fast, secure, and widely used in applications requiring high-speed encryption of large amounts of data.',
       icon: '🔐'
     },
     {
       id: 'rsa',
       label: 'RSA',
       title: 'Rivest-Shamir-Adleman',
-      description: 'Asymmetric encryption using public and private key pairs',
+      description: 'RSA is an asymmetric encryption algorithm that uses a pair of keys - a public key for encryption and a private key for decryption. This allows secure communication without prior key exchange.',
       icon: '🔑'
     },
     {
       id: 'curve25519',
       label: 'Curve25519',
       title: 'Elliptic Curve Cryptography',
-      description: 'Modern elliptic curve cryptography for secure key exchange',
+      description: 'Curve25519 is a modern elliptic curve designed for high security and performance. It provides the same security as RSA with much smaller key sizes and faster computations.',
       icon: '🌊'
     },
     {
       id: 'chacha20',
       label: 'ChaCha20',
       title: 'ChaCha20 Stream Cipher',
-      description: 'High-speed stream cipher designed for security and performance',
+      description: 'ChaCha20 is a high-speed stream cipher designed by Daniel J. Bernstein. It provides strong security while being resistant to timing attacks and optimized for software implementations.',
       icon: '⚡'
     }
   ];
@@ -298,12 +298,12 @@ function CryptoTool() {
             ))}
           </div>
 
-          {/* Algorithm Info */}
+          {/* Algorithm Description */}
           <div className="text-center mb-8">
-            <div className="bg-gray-900/50 backdrop-blur-sm border border-gray-700 rounded-xl p-6 max-w-2xl mx-auto">
+            <div className="bg-gray-900/50 backdrop-blur-sm border border-gray-700 rounded-xl p-6 max-w-4xl mx-auto">
               <div className="text-4xl mb-3">{currentTab?.icon}</div>
               <h3 className="text-2xl font-semibold text-white mb-2">{currentTab?.title}</h3>
-              <p className="text-gray-400">{currentTab?.description}</p>
+              <p className="text-gray-400 leading-relaxed">{currentTab?.description}</p>
             </div>
           </div>
 
@@ -345,7 +345,7 @@ function CryptoTool() {
                 {activeTab === 'rsa' ? (
                   <div className="space-y-4">
                     <div>
-                      <label className="block text-gray-400 text-sm font-medium mb-2">Public Key</label>
+                      <label className="block text-gray-400 text-sm font-medium mb-2">Public Key (for encryption)</label>
                       <div className="relative">
                         <input
                           type="text"
@@ -365,7 +365,7 @@ function CryptoTool() {
                       </div>
                     </div>
                     <div>
-                      <label className="block text-gray-400 text-sm font-medium mb-2">Private Key</label>
+                      <label className="block text-gray-400 text-sm font-medium mb-2">Private Key (for decryption)</label>
                       <div className="relative">
                         <input
                           type="text"
@@ -388,7 +388,7 @@ function CryptoTool() {
                 ) : activeTab === 'chacha20' ? (
                   <div className="space-y-4">
                     <div>
-                      <label className="block text-gray-400 text-sm font-medium mb-2">Secret Key</label>
+                      <label className="block text-gray-400 text-sm font-medium mb-2">Secret Key (256-bit)</label>
                       <div className="relative">
                         <input
                           type="text"
@@ -408,7 +408,7 @@ function CryptoTool() {
                       </div>
                     </div>
                     <div>
-                      <label className="block text-gray-400 text-sm font-medium mb-2">Nonce</label>
+                      <label className="block text-gray-400 text-sm font-medium mb-2">Nonce (96-bit)</label>
                       <div className="relative">
                         <input
                           type="text"
@@ -430,6 +430,7 @@ function CryptoTool() {
                   </div>
                 ) : (
                   <div className="relative">
+                    <label className="block text-gray-400 text-sm font-medium mb-2">Secret Key</label>
                     <input
                       type="text"
                       value={secretKey}
@@ -520,46 +521,45 @@ function CryptoTool() {
                   <h4 className="text-lg font-semibold text-amber-400">Security Notice</h4>
                 </div>
                 <p className="text-amber-200 text-sm leading-relaxed">
-                  This tool is for educational purposes only. The implementations are simplified and 
+                  This tool is for educational purposes only. The implementations are simplified demonstrations and 
                   not cryptographically secure. Never use these algorithms for real-world security applications.
                 </p>
               </div>
 
-              {/* Algorithm Info */}
+              {/* Algorithm Details */}
               <div className="bg-gray-900/30 backdrop-blur-sm border border-gray-700 rounded-xl p-6">
                 <h4 className="text-lg font-semibold text-white mb-3">About {currentTab?.label}</h4>
                 <div className="text-gray-300 text-sm space-y-2">
                   {activeTab === 'aes' && (
                     <>
-                      <p>• Symmetric encryption algorithm</p>
-                      <p>• Same key for encryption and decryption</p>
-                      <p>• Fast and efficient for large data</p>
-                      <p>• Widely used in secure communications</p>
+                      <p>• <strong>Type:</strong> Symmetric encryption algorithm</p>
+                      <p>• <strong>Key Size:</strong> 128, 192, or 256 bits</p>
+                      <p>• <strong>Use Case:</strong> Fast encryption of large data sets</p>
+                      <p>• <strong>Security:</strong> Widely trusted and standardized</p>
                     </>
                   )}
                   {activeTab === 'rsa' && (
                     <>
-                      <p>• Asymmetric encryption algorithm</p>
-                      <p>• Uses public/private key pairs</p>
-                      <p>• Public key for encryption, private for decryption</p>
-                      <p>• Secure key exchange without prior contact</p>
+                      <p>• <strong>Type:</strong> Asymmetric encryption algorithm</p>
+                      <p>• <strong>Key Size:</strong> Typically 2048 or 4096 bits</p>
+                      <p>• <strong>Use Case:</strong> Secure key exchange and digital signatures</p>
+                      <p>• <strong>Security:</strong> Based on factoring large prime numbers</p>
                     </>
                   )}
                   {activeTab === 'curve25519' && (
                     <>
-                      <p>• Elliptic curve cryptography</p>
-                      <p>• Smaller keys, same security level</p>
-                      <p>• Faster computations</p>
-                      <p>• Popular in modern protocols</p>
+                      <p>• <strong>Type:</strong> Elliptic curve cryptography</p>
+                      <p>• <strong>Key Size:</strong> 255 bits (equivalent to 3072-bit RSA)</p>
+                      <p>• <strong>Use Case:</strong> Modern protocols and key agreement</p>
+                      <p>• <strong>Security:</strong> Resistant to side-channel attacks</p>
                     </>
                   )}
                   {activeTab === 'chacha20' && (
                     <>
-                      <p>• High-speed stream cipher</p>
-                      <p>• Uses 256-bit keys and 96-bit nonces</p>
-                      <p>• Designed for both security and performance</p>
-                      <p>• Resistant to timing attacks</p>
-                      <p>• Used in TLS 1.3 and modern protocols</p>
+                      <p>• <strong>Type:</strong> Stream cipher</p>
+                      <p>• <strong>Key Size:</strong> 256 bits with 96-bit nonce</p>
+                      <p>• <strong>Use Case:</strong> High-speed encryption, mobile devices</p>
+                      <p>• <strong>Security:</strong> Resistant to timing attacks</p>
                     </>
                   )}
                 </div>
