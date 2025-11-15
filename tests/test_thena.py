@@ -9,7 +9,7 @@ import shutil
 # Add the root directory to the Python path
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-from Thena_dev_v19 import (
+from Thena_dev_v20 import (
     calculate_checksum,
     compress_data,
     decompress_data,
@@ -20,6 +20,8 @@ from Thena_dev_v19 import (
     load_or_create_master_key,
     encrypt_file_with_master_key,
     decrypt_file_with_master_key,
+    validate_password_keyfile,
+    secure_wipe_file,
     config
 )
 
@@ -94,10 +96,10 @@ class TestEncryptionFunctions(unittest.TestCase):
         master_key = load_or_create_master_key(self.password, self.keyfile, hide_paths=True)
         self.assertIsNotNone(master_key)
 
-        encrypt_success, _ = encrypt_file_with_master_key(self.input_file, self.encrypted_file, master_key, hide_paths=True)
+        encrypt_success, _ = encrypt_file_with_master_key(self.input_file, self.encrypted_file, master_key, self.password, self.keyfile, hide_paths=True)
         self.assertTrue(encrypt_success)
 
-        decrypt_success, _ = decrypt_file_with_master_key(self.encrypted_file, self.decrypted_file, master_key, hide_paths=True)
+        decrypt_success, _ = decrypt_file_with_master_key(self.encrypted_file, self.decrypted_file, master_key, self.password, self.keyfile, hide_paths=True)
         self.assertTrue(decrypt_success)
 
         with open(self.input_file, "rb") as f:
@@ -105,6 +107,135 @@ class TestEncryptionFunctions(unittest.TestCase):
         with open(self.decrypted_file, "rb") as f:
             decrypted_data = f.read()
 
+        self.assertEqual(original_data, decrypted_data)
+
+    def test_decrypt_with_wrong_password(self):
+        encrypt_success, _ = encrypt_file_simple(self.input_file, self.encrypted_file, self.password, self.keyfile, hide_paths=True)
+        self.assertTrue(encrypt_success)
+
+        decrypt_success, _ = decrypt_file_simple(self.encrypted_file, self.decrypted_file, "wrong_password", self.keyfile, hide_paths=True)
+        self.assertFalse(decrypt_success)
+
+    def test_decrypt_tampered_file(self):
+        encrypt_success, _ = encrypt_file_simple(self.input_file, self.encrypted_file, self.password, self.keyfile, hide_paths=True)
+        self.assertTrue(encrypt_success)
+
+        # Tamper with the encrypted file
+        with open(self.encrypted_file, "r+b") as f:
+            f.seek(len(f.read()) // 2) # Go to the middle of the file
+            f.write(secrets.token_bytes(10))
+
+        decrypt_success, _ = decrypt_file_simple(self.encrypted_file, self.decrypted_file, self.password, self.keyfile, hide_paths=True)
+        self.assertFalse(decrypt_success)
+
+class TestKDFConfigurations(unittest.TestCase):
+    def setUp(self):
+        self.test_dir = "test_data_kdf"
+        os.makedirs(self.test_dir, exist_ok=True)
+        self.input_file = os.path.join(self.test_dir, "test_input.txt")
+        self.encrypted_file = os.path.join(self.test_dir, "test_input.encrypted")
+        self.decrypted_file = os.path.join(self.test_dir, "test_input.decrypted")
+        with open(self.input_file, "wb") as f:
+            f.write(secrets.token_bytes(1024))
+        self.password = "test_password"
+        self.keyfile = None
+        config["SILENT_MODE"] = True
+        config["encryption_algorithm"] = "aes-gcm"
+
+    def tearDown(self):
+        if os.path.exists(self.test_dir):
+            shutil.rmtree(self.test_dir)
+        if os.path.exists("thena_config_v19.json"):
+            os.remove("thena_config_v19.json")
+
+    def test_kdf_pbkdf2(self):
+        config['kdf_type'] = 'pbkdf2'
+        encrypt_success, _ = encrypt_file_simple(self.input_file, self.encrypted_file, self.password, self.keyfile, hide_paths=True)
+        self.assertTrue(encrypt_success)
+        decrypt_success, _ = decrypt_file_simple(self.encrypted_file, self.decrypted_file, self.password, self.keyfile, hide_paths=True)
+        self.assertTrue(decrypt_success)
+        with open(self.input_file, "rb") as f:
+            original_data = f.read()
+        with open(self.decrypted_file, "rb") as f:
+            decrypted_data = f.read()
+        self.assertEqual(original_data, decrypted_data)
+
+    def test_kdf_scrypt(self):
+        config['kdf_type'] = 'scrypt'
+        encrypt_success, _ = encrypt_file_simple(self.input_file, self.encrypted_file, self.password, self.keyfile, hide_paths=True)
+        self.assertTrue(encrypt_success)
+        decrypt_success, _ = decrypt_file_simple(self.encrypted_file, self.decrypted_file, self.password, self.keyfile, hide_paths=True)
+        self.assertTrue(decrypt_success)
+        with open(self.input_file, "rb") as f:
+            original_data = f.read()
+        with open(self.decrypted_file, "rb") as f:
+            decrypted_data = f.read()
+        self.assertEqual(original_data, decrypted_data)
+
+class TestUtilityFunctionsExtra(unittest.TestCase):
+
+    def setUp(self):
+        self.test_dir = "test_data_utils"
+        os.makedirs(self.test_dir, exist_ok=True)
+        self.wipe_file = os.path.join(self.test_dir, "wipe_me.txt")
+        with open(self.wipe_file, "w") as f:
+            f.write("some data to be wiped")
+
+    def tearDown(self):
+        if os.path.exists(self.test_dir):
+            shutil.rmtree(self.test_dir)
+
+    def test_validate_password_strength(self):
+        self.assertFalse(validate_password_keyfile("short", None, interactive=False))
+        self.assertFalse(validate_password_keyfile("onlylowercase", None, interactive=False))
+        self.assertFalse(validate_password_keyfile("123456789012", None, interactive=False))
+        self.assertTrue(validate_password_keyfile("ThisIsAStrongP@ssw0rd!", None, interactive=False))
+
+    def test_secure_wipe_file(self):
+        self.assertTrue(os.path.exists(self.wipe_file))
+        secure_wipe_file(self.wipe_file, passes=1)
+        self.assertFalse(os.path.exists(self.wipe_file))
+
+
+class TestAsymmetricEncryption(unittest.TestCase):
+    def setUp(self):
+        self.test_dir = "test_data_asymmetric"
+        os.makedirs(self.test_dir, exist_ok=True)
+        self.input_file = os.path.join(self.test_dir, "test_input.txt")
+        self.encrypted_file = os.path.join(self.test_dir, "test_input.encrypted")
+        self.decrypted_file = os.path.join(self.test_dir, "test_input.decrypted")
+        with open(self.input_file, "wb") as f:
+            f.write(secrets.token_bytes(1024))
+        self.password = "test_password"
+        self.keyfile = None
+        config["SILENT_MODE"] = True
+
+    def tearDown(self):
+        if os.path.exists(self.test_dir):
+            shutil.rmtree(self.test_dir)
+        # Clean up key files
+        for key_file in [config.get("rsa_private_key_file"), config.get("x25519_private_key_file")]:
+            if key_file and os.path.exists(key_file):
+                os.remove(key_file)
+
+    def test_encrypt_decrypt_asymmetric(self):
+        # Test with RSA and Curve25519 enabled
+        encrypt_success, _ = encrypt_file_simple(
+            self.input_file, self.encrypted_file, self.password, self.keyfile,
+            hide_paths=True, use_rsa=True, use_curve25519=True
+        )
+        self.assertTrue(encrypt_success)
+
+        decrypt_success, _ = decrypt_file_simple(
+            self.encrypted_file, self.decrypted_file, self.password, self.keyfile,
+            hide_paths=True
+        )
+        self.assertTrue(decrypt_success)
+
+        with open(self.input_file, "rb") as f:
+            original_data = f.read()
+        with open(self.decrypted_file, "rb") as f:
+            decrypted_data = f.read()
         self.assertEqual(original_data, decrypted_data)
 
 if __name__ == '__main__':

@@ -1482,15 +1482,18 @@ def encrypt_file_simple(input_path: str, output_path: str, password: str, keyfil
         input_size = os.path.getsize(input_path)
         logger.info(f"Ukuran file input: {input_size} bytes")
         parts_to_write = []
-        key_encryption_method = "pbkdf" # Default password-based
-        salt = None
+        key_encryption_method = "pbkdf"
+
+        # This salt is for the header key derivation, and is always needed.
+        salt = secrets.token_bytes(config["file_key_length"])
+        key_for_header = derive_key_from_password_and_keyfile(password, salt, keyfile_path)
+        if key_for_header is None:
+            logger.error(f"Failed to derive header key for {input_path}")
+            return False, None
 
         if not use_rsa and not use_curve25519:
-            salt = secrets.token_bytes(config["file_key_length"])
-            key = derive_key_from_password_and_keyfile(password, salt, keyfile_path)
-            if key is None:
-                logger.error(f"Gagal menurunkan kunci untuk {input_path}")
-                return False, None
+            key = key_for_header
+            # The same salt is stored in the parts for data key derivation during decryption
             parts_to_write.append(("salt", salt))
         else:
             key = secrets.token_bytes(config["file_key_length"])
@@ -1666,7 +1669,7 @@ def encrypt_file_simple(input_path: str, output_path: str, password: str, keyfil
 
         # --- V18: Encrypted Meta Header ---
         header_salt = secrets.token_bytes(16)
-        header_key = derive_key_for_header(key, header_salt)
+        header_key = derive_key_for_header(key_for_header, header_salt)
         header_nonce = secrets.token_bytes(config["gcm_nonce_len"])
         header_cipher = AESGCM(header_key)
         encrypted_structure_payload = header_cipher.encrypt(header_nonce, structure_payload, associated_data=None)
@@ -1678,6 +1681,8 @@ def encrypt_file_simple(input_path: str, output_path: str, password: str, keyfil
         header_to_write = meta_header_prefix + encrypted_header_size_bytes + header_nonce + encrypted_structure_payload
 
         total_output_size = len(salt) + len(header_salt) + len(header_to_write) + sum(len(part_data) for _, part_data in shuffled_parts)
+        if salt is not None:
+             total_output_size += len(salt)
 
         with open(output_path, 'wb') as outfile:
             print_loading_progress()
@@ -2660,6 +2665,62 @@ def decrypt_file_simple(input_path: str, output_path: str, password: str, keyfil
 
         # Konversi padding_added kembali dari bytes
         padding_added = int.from_bytes(padding_size_bytes, byteorder='big')
+        key_encryption_method = parts_read.get("key_method", b"pbkdf").decode('ascii')
+
+        key = None
+        if key_encryption_method == "pbkdf":
+            salt = parts_read.get("salt")
+            if salt is None:
+                print_error_box("File korup: salt tidak ditemukan untuk mode pbkdf.")
+                return False, None
+            key = derive_key_from_password_and_keyfile(password, salt, keyfile_path)
+        else:
+            encrypted_key = parts_read.get("encrypted_key")
+            if encrypted_key is None:
+                print_error_box("File korup: kunci terenkripsi tidak ditemukan.")
+                return False, None
+
+            rsa_private_key, x25519_private_key = load_keys(password, keyfile_path)
+            if rsa_private_key is None:
+                print_error_box("Gagal memuat kunci asimetris.")
+                return False, None
+
+            decrypted_key = encrypted_key
+            if "rsa" in key_encryption_method:
+                try:
+                    decrypted_key = rsa_private_key.decrypt(
+                        decrypted_key,
+                        padding.OAEP(
+                            mgf=padding.MGF1(algorithm=hashes.SHA256()),
+                            algorithm=hashes.SHA256(),
+                            label=None
+                        )
+                    )
+                except (ValueError, TypeError):
+                    print_error_box("Gagal dekripsi kunci RSA.")
+                    return False, None
+
+            if "x25519" in key_encryption_method:
+                ephemeral_pub_key_bytes = parts_read.get("x25519_ephemeral_pub")
+                nonce_wrap = parts_read.get("x25519_nonce_wrap")
+                if ephemeral_pub_key_bytes is None or nonce_wrap is None:
+                    print_error_box("File korup: data Curve25519 tidak ditemukan.")
+                    return False, None
+
+                ephemeral_pub_key = x25519.X25519PublicKey.from_public_bytes(ephemeral_pub_key_bytes)
+                shared_key = x25519_private_key.exchange(ephemeral_pub_key)
+                hkdf = HKDF(algorithm=hashes.SHA256(), length=32, salt=None, info=b'curve25519-aes-wrap')
+                wrapping_key = hkdf.derive(shared_key)
+                try:
+                    decrypted_key = AESGCM(wrapping_key).decrypt(nonce_wrap, decrypted_key, None)
+                except exceptions.InvalidTag:
+                    print_error_box("Gagal dekripsi kunci Curve25519.")
+                    return False, None
+            key = decrypted_key
+
+        if key is None:
+            print_error_box("Gagal mendapatkan kunci dekripsi.")
+            return False, None
 
         # --- V14: Secure Memory Locking ---
         if config.get("enable_secure_memory_locking", False):
@@ -3885,10 +3946,10 @@ def main():
                         continue
                     if is_encrypt:
                         func = encrypt_file_with_master_key
-                            success, _ = func(input_path, output_path, master_key, password, keyfile_path, add_random_padding=add_padding, hide_paths=hide_paths, use_rsa=use_rsa, use_curve25519=use_curve25519)
+                        success, _ = func(input_path, output_path, master_key, password, keyfile_path, add_random_padding=add_padding, hide_paths=hide_paths, use_rsa=use_rsa, use_curve25519=use_curve25519)
                     else:
                         func = decrypt_file_with_master_key
-                            success, _ = func(input_path, output_path, master_key, password, keyfile_path, hide_paths=hide_paths)
+                        success, _ = func(input_path, output_path, master_key, password, keyfile_path, hide_paths=hide_paths)
                 else:
                     if is_encrypt:
                         func = encrypt_file_simple
