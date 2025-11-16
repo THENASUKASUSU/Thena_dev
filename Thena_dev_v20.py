@@ -1923,20 +1923,6 @@ def decrypt_file_simple(input_path: str, output_path: str, password: str, keyfil
                 return False, None
 
             decrypted_key = encrypted_key
-            if "rsa" in key_encryption_method:
-                try:
-                    decrypted_key = rsa_private_key.decrypt(
-                        decrypted_key,
-                        padding.OAEP(
-                            mgf=padding.MGF1(algorithm=hashes.SHA256()),
-                            algorithm=hashes.SHA256(),
-                            label=None
-                        )
-                    )
-                except (ValueError, TypeError):
-                    print_error_box("Gagal dekripsi kunci RSA.")
-                    return False, None
-
             if "x25519" in key_encryption_method:
                 ephemeral_pub_key_bytes = parts_read.get("x25519_ephemeral_pub")
                 nonce_wrap = parts_read.get("x25519_nonce_wrap")
@@ -1953,6 +1939,21 @@ def decrypt_file_simple(input_path: str, output_path: str, password: str, keyfil
                 except exceptions.InvalidTag:
                     print_error_box("Gagal dekripsi kunci Curve25519.")
                     return False, None
+
+            if "rsa" in key_encryption_method:
+                try:
+                    decrypted_key = rsa_private_key.decrypt(
+                        decrypted_key,
+                        padding.OAEP(
+                            mgf=padding.MGF1(algorithm=hashes.SHA256()),
+                            algorithm=hashes.SHA256(),
+                            label=None
+                        )
+                    )
+                except (ValueError, TypeError):
+                    print_error_box("Gagal dekripsi kunci RSA.")
+                    return False, None
+
             key = decrypted_key
 
         if key is None:
@@ -2193,12 +2194,23 @@ def encrypt_file_with_master_key(input_path: str, output_path: str, master_key: 
         # --- Logika untuk RSA dan Curve25519 ---
         encrypted_file_key = file_key
         key_encryption_method = "master_key" # Default
+        parts_to_write = []
         if use_rsa or use_curve25519:
             rsa_private_key, x25519_private_key = load_keys(password, keyfile_path)
             if rsa_private_key is None or x25519_private_key is None:
                 cprint(f"{YELLOW}Kunci asimetris tidak ditemukan. Membuat yang baru...{RESET}")
                 rsa_private_key, x25519_private_key = generate_and_save_keys(password, keyfile_path)
                 cprint(f"{GREEN}Kunci asimetris baru berhasil dibuat dan disimpan.{RESET}")
+
+            if use_rsa:
+                encrypted_file_key = rsa_private_key.public_key().encrypt(
+                    encrypted_file_key,
+                    padding.OAEP(
+                        mgf=padding.MGF1(algorithm=hashes.SHA256()),
+                        algorithm=hashes.SHA256(),
+                        label=None
+                    )
+                )
 
             if use_curve25519:
                 ephemeral_private = x25519.X25519PrivateKey.generate()
@@ -2212,16 +2224,6 @@ def encrypt_file_with_master_key(input_path: str, output_path: str, master_key: 
                     ("x25519_ephemeral_pub", ephemeral_public_key_bytes),
                     ("x25519_nonce_wrap", nonce_wrap)
                 ])
-
-            if use_rsa:
-                encrypted_file_key = rsa_private_key.public_key().encrypt(
-                    encrypted_file_key,
-                    padding.OAEP(
-                        mgf=padding.MGF1(algorithm=hashes.SHA256()),
-                        algorithm=hashes.SHA256(),
-                        label=None
-                    )
-                )
 
             key_method_parts = ["master_key"]
             if use_rsa: key_method_parts.append("rsa")
@@ -3330,6 +3332,15 @@ def decrypt_file_with_master_key(input_path: str, output_path: str, master_key: 
                 return False, None
 
             decrypted_key = encrypted_file_key
+
+            if "master_key" in key_encryption_method:
+                 master_fernet = Fernet(base64.urlsafe_b64encode(master_key))
+                 try:
+                      decrypted_key = master_fernet.decrypt(decrypted_key)
+                 except Exception as e:
+                      print(f"{RED}❌ Error: Gagal mendekripsi File Key dengan Master Key: {e}{RESET}")
+                      return False, None
+
             if "rsa" in key_encryption_method:
                 try:
                     decrypted_key = rsa_private_key.decrypt(
@@ -3355,13 +3366,6 @@ def decrypt_file_with_master_key(input_path: str, output_path: str, master_key: 
                     print_error_box("Gagal dekripsi kunci Curve25519.")
                     return False, None
 
-            if "master_key" in key_encryption_method:
-                 master_fernet = Fernet(base64.urlsafe_b64encode(master_key))
-                 try:
-                      decrypted_key = master_fernet.decrypt(decrypted_key)
-                 except Exception as e:
-                      print(f"{RED}❌ Error: Gagal mendekripsi File Key dengan Master Key: {e}{RESET}")
-                      return False, None
             file_key = decrypted_key
 
         # --- V14: Secure Memory Locking ---
@@ -3903,50 +3907,72 @@ def main():
                 hide_paths_input = input(f"{BOLD}Sembunyikan path file di output layar? (y/N): {RESET}").strip().lower()
                 hide_paths = hide_paths_input in ['y', 'yes']
 
-                # Langsung gunakan AES-GCM
                 if is_encrypt:
                     cprint("\n" + "─" * 50)
                     cprint(f"{YELLOW}⚠️  Gunakan password dan keyfile yang SANGAT KUAT!{RESET}")
                     cprint("─" * 50)
                     add_pad = input(f"{BOLD}Tambahkan padding acak? (y/N): {RESET}").strip().lower()
                     add_padding = add_pad not in ['n', 'no']
-                else:
-                    add_padding = True # Padding tidak berpengaruh saat dekripsi
 
-                use_rsa = False
-                use_curve25519 = False
-                if CRYPTOGRAPHY_AVAILABLE:
-                    if is_encrypt:
-                        # Opsi keamanan tambahan setelah enkripsi
-                        use_rsa_input = input(f"{BOLD}Gunakan RSA untuk mengamankan kunci AES? (y/N): {RESET}").strip().lower()
-                        use_rsa = use_rsa_input in ['y', 'yes']
-
-                        use_curve25519_input = input(f"{BOLD}Gunakan Curve25519 untuk lapisan tambahan? (y/N): {RESET}").strip().lower()
-                        use_curve25519 = use_curve25519_input in ['y', 'yes']
+                    # Enkripsi awal dengan AES
                     master_key = load_or_create_master_key(password, keyfile_path, hide_paths=hide_paths)
                     if master_key is None:
                         print_error_box("Gagal mendapatkan Master Key. Operasi dibatalkan.")
                         continue
-                    if is_encrypt:
-                        func = encrypt_file_with_master_key
-                        success, _ = func(input_path, output_path, master_key, password, keyfile_path, add_random_padding=add_padding, hide_paths=hide_paths, use_rsa=use_rsa, use_curve25519=use_curve25519)
-                    else:
-                        func = decrypt_file_with_master_key
-                        success, _ = func(input_path, output_path, master_key, password, keyfile_path, hide_paths=hide_paths)
-                else:
-                    if is_encrypt:
-                        func = encrypt_file_simple
-                        success, _ = func(input_path, output_path, password, keyfile_path, add_random_padding=add_padding, hide_paths=hide_paths, use_rsa=use_rsa, use_curve25519=use_curve25519)
-                    else:
-                        func = decrypt_file_simple
-                        success, _ = func(input_path, output_path, password, keyfile_path, hide_paths=hide_paths)
 
-                if success:
-                    if is_encrypt:
-                        delete_original = input(f"{BOLD}Hapus file asli? (y/N): {RESET}").strip().lower()
-                        if delete_original in ['y', 'yes']:
-                            secure_wipe_file(input_path)
-                    else: # Decryption
+                    success, encrypted_path = encrypt_file_with_master_key(
+                        input_path, output_path, master_key, password, keyfile_path,
+                        add_random_padding=add_padding, hide_paths=hide_paths,
+                        use_rsa=False, use_curve25519=False
+                    )
+
+                    if not success:
+                        print_error_box("Enkripsi awal dengan AES gagal.")
+                        continue
+
+                    # Opsi keamanan tambahan
+                    if CRYPTOGRAPHY_AVAILABLE:
+                        use_rsa_input = input(f"{BOLD}Gunakan RSA untuk mengamankan kunci AES? (y/N): {RESET}").strip().lower()
+                        if use_rsa_input in ['y', 'yes']:
+                            success, rsa_encrypted_path = encrypt_file_with_master_key(
+                                encrypted_path, output_path, master_key, password, keyfile_path,
+                                add_random_padding=False, hide_paths=hide_paths,
+                                use_rsa=True, use_curve25519=False
+                            )
+                            if success:
+                                encrypted_path = rsa_encrypted_path
+                            else:
+                                print_error_box("Enkripsi dengan RSA gagal.")
+                                continue
+
+                        use_curve25519_input = input(f"{BOLD}Gunakan Curve25519 untuk lapisan tambahan? (y/N): {RESET}").strip().lower()
+                        if use_curve25519_input in ['y', 'yes']:
+                            success, curve_encrypted_path = encrypt_file_with_master_key(
+                                encrypted_path, output_path, master_key, password, keyfile_path,
+                                add_random_padding=False, hide_paths=hide_paths,
+                                use_rsa='rsa' in locals(), use_curve25519=True
+                            )
+                            if success:
+                                encrypted_path = curve_encrypted_path
+                            else:
+                                print_error_box("Enkripsi dengan Curve25519 gagal.")
+                                continue
+
+                    delete_original = input(f"{BOLD}Hapus file asli secara AMAN? (y/N): {RESET}").strip().lower()
+                    if delete_original in ['y', 'yes']:
+                        secure_wipe_file(input_path)
+
+                else: # Decryption
+                    master_key = load_or_create_master_key(password, keyfile_path, hide_paths=hide_paths)
+                    if master_key is None:
+                        print_error_box("Gagal mendapatkan Master Key. Operasi dibatalkan.")
+                        continue
+
+                    success, _ = decrypt_file_with_master_key(
+                        input_path, output_path, master_key, password, keyfile_path, hide_paths=hide_paths
+                    )
+
+                    if success:
                         delete_encrypted = input(f"{BOLD}Hapus file terenkripsi? (y/N): {RESET}").strip().lower()
                         if delete_encrypted in ['y', 'yes']:
                             secure_wipe_file(input_path)
